@@ -74,6 +74,8 @@ Usage:
   $SELF_NAME status
   $SELF_NAME logs
   $SELF_NAME notify
+  $SELF_NAME backup
+  $SELF_NAME install-backup-cron [schedule]
   $SELF_NAME pull
   $SELF_NAME update
   $SELF_NAME down
@@ -84,6 +86,7 @@ Notes:
   - detected mode: $ACTIVE_MODE
   - docker permissions are auto-detected; set DOCKER_BIN manually only if needed
   - set WINDROSE_MODE=prod or WINDROSE_MODE=dev to override auto detection
+  - backup archives default to ./backups with 7-day retention
 EOF
 }
 
@@ -120,6 +123,51 @@ follow_logs() {
 run_notifier() {
     echo "[windrose] Starting activity notifier..."
     exec "$SCRIPT_DIR/notify.sh"
+}
+
+backup_server() {
+    local was_running=""
+    local backup_exit=0
+
+    if dc ps --status running --services 2>/dev/null | grep -Fx "$SERVICE_NAME" >/dev/null 2>&1; then
+        was_running="yes"
+        echo "[windrose] Stopping server for a consistent backup..."
+        dc stop "$SERVICE_NAME"
+    fi
+
+    if "$SCRIPT_DIR/backup.sh"; then
+        backup_exit=0
+    else
+        backup_exit=$?
+    fi
+
+    if [[ -n "$was_running" ]]; then
+        echo "[windrose] Starting server again..."
+        dc up -d
+        dc ps
+    fi
+
+    return "$backup_exit"
+}
+
+install_backup_cron() {
+    local schedule="${1:-0 */6 * * *}"
+    local cron_line="$schedule cd $SCRIPT_DIR && $SCRIPT_DIR/backup.sh >/dev/null 2>&1"
+
+    if ! command -v crontab >/dev/null 2>&1; then
+        echo "[windrose] Error: crontab is not available on this host."
+        exit 1
+    fi
+
+    if crontab -l 2>/dev/null | grep -F "$SCRIPT_DIR/backup.sh" >/dev/null 2>&1; then
+        echo "[windrose] Backup cron already installed."
+        crontab -l
+        return
+    fi
+
+    (crontab -l 2>/dev/null; echo "$cron_line") | crontab -
+    echo "[windrose] Installed backup cron:"
+    echo "$cron_line"
 }
 
 pull_image() {
@@ -175,6 +223,12 @@ case "${1:-help}" in
         ;;
     notify)
         run_notifier
+        ;;
+    backup)
+        backup_server
+        ;;
+    install-backup-cron)
+        install_backup_cron "${2:-}"
         ;;
     pull)
         pull_image

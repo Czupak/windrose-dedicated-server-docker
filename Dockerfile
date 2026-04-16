@@ -43,7 +43,8 @@ RUN mkdir -p /opt/steamcmd && \
   chown -R steam:steam /opt/steamcmd /home/steam
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY healthcheck.sh /healthcheck.sh
+RUN chmod +x /entrypoint.sh /healthcheck.sh
 
 USER steam
 WORKDIR /home/steam

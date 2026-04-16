@@ -15,7 +15,7 @@ Self-hosted dedicated server for [Windrose](https://store.steampowered.com/app/2
 - Optional env-driven patching for server name, password, invite code, and max players
 - PUID and PGID support for better host permission compatibility
 - `restart: unless-stopped` — survives host reboots automatically
-- Healthcheck watching the server process
+- Improved healthcheck validating process, config, and UDP port binding
 - Log rotation (20 MB × 5 files)
 - Anonymous SteamCMD login by default
 
@@ -221,6 +221,8 @@ chmod +x ./windrose ./serverctl.sh
 ./windrose logs
 ./windrose update
 ./windrose notify
+./windrose backup
+./windrose install-backup-cron
 ```
 
 Optional system-wide install:
@@ -268,16 +270,20 @@ At the moment this is log-based and best-effort. Disconnect events are easier to
 
 ## Backup saves
 
+Use the built-in helper for a safer backup flow. It briefly stops the server, creates a timestamped archive, and starts it again if it was running.
+
 ```bash
-# Manual backup
-tar -czf windrose-backup-$(date +%F).tar.gz data/R5/Saved
+# Create a manual backup
+./windrose backup
 
-# Cron — every 6 hours (add via crontab -e)
-0 */6 * * * tar --warning=no-file-changed -czf /root/windrose-backup-$(date +\%F-\%H).tar.gz /path/to/windrose/data/R5/Saved
+# Install a host cron job running every 6 hours
+./windrose install-backup-cron
 
-# Delete backups older than 7 days
-find /root/windrose-backup-* -mtime +7 -delete
+# Or provide your own schedule
+./windrose install-backup-cron "0 3 * * *"
 ```
+
+Backups are stored in `./backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`.
 
 ---
 
