@@ -10,14 +10,21 @@ ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
 RUN dpkg --add-architecture i386 && \
-    apt update && \
-    apt install -y \
+    mkdir -pm755 /etc/apt/keyrings && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      wget gpg ca-certificates && \
+    wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
+    wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources && \
+    apt-get update && \
+    apt-get install -y --install-recommends \
+      winehq-stable \
       curl ca-certificates \
       xvfb xauth \
-      wine64 wine32 winbind \
+      winbind \
       lib32gcc-s1 lib32stdc++6 \
       libc6:i386 libstdc++6:i386 \
-      libncurses5:i386 libtinfo5:i386 \
+      libncurses6:i386 libtinfo6:i386 \
       locales \
       jq \
       procps \
@@ -37,6 +44,7 @@ RUN mkdir -p /opt/steamcmd && \
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+USER steam
 WORKDIR /home/steam
 
 ENTRYPOINT ["/entrypoint.sh"]
