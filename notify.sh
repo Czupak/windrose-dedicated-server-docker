@@ -14,6 +14,7 @@ GOTIFY_TOKEN="${GOTIFY_TOKEN:-}"
 GOTIFY_PRIORITY="${GOTIFY_PRIORITY:-5}"
 NOTIFY_DEDUPE_WINDOW="${NOTIFY_DEDUPE_WINDOW:-90}"
 NOTIFY_TAIL_LINES="${NOTIFY_TAIL_LINES:-0}"
+NOTIFY_DEBUG="${NOTIFY_DEBUG:-false}"
 
 declare -A PLAYER_NAMES=()
 declare -A RECENT_EVENTS=()
@@ -56,6 +57,7 @@ Environment:
   GOTIFY_PRIORITY=5
   NOTIFY_DEDUPE_WINDOW=90
   NOTIFY_TAIL_LINES=0
+  NOTIFY_DEBUG=false
 EOF
 }
 
@@ -136,6 +138,12 @@ send_notification() {
   esac
 }
 
+debug_log() {
+  if [[ "$NOTIFY_DEBUG" == "true" ]]; then
+    echo "[notify][debug] $*" >&2
+  fi
+}
+
 trim() {
   local value="$1"
   value="${value%$'\r'}"
@@ -164,6 +172,7 @@ extract_name() {
   local name=""
 
   name=$(printf '%s' "$line" | sed -nE 's/.*(DisplayName|PlayerName|Nickname|UserName)[:=][[:space:]]*"?([^",]+)"?.*/\2/p' | head -n 1)
+  [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE 's/.*[?&]Name=([^ ?&,]+).*/\1/p' | head -n 1)
   [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE 's/.*player[[:space:]]+([^ ]+)[[:space:]]+(joined|connected|disconnected).*/\1/pI' | head -n 1)
   name=$(printf '%s' "$name" | sed -E 's/[[:space:]]+(UniqueId:.*|AccountId.*|joined.*|connected.*|disconnected.*)$//I')
   printf '%s' "$(trim "$name")"
@@ -220,6 +229,20 @@ should_send_event() {
   return 0
 }
 
+is_disconnect_candidate() {
+  local line="$1"
+  local lower_line="${line,,}"
+
+  [[ "$lower_line" == *"disconnectaccount"* || "$lower_line" == *"graceful close timed out"* || "$lower_line" == *" disconnected"* || "$lower_line" == *"connection lost"* || "$lower_line" == *"closing connection"* ]]
+}
+
+is_join_candidate() {
+  local line="$1"
+  local lower_line="${line,,}"
+
+  [[ "$lower_line" == *" joined"* || "$lower_line" == *" connected"* || "$lower_line" == *"login request"* || "$lower_line" == *"join request"* || "$lower_line" == *"postlogin"* || "$lower_line" == *"notifyacceptingconnection accepted"* || "$lower_line" == *"notifyacceptedconnection"* || "$lower_line" == *"addclientconnection"* ]]
+}
+
 parse_line() {
   local raw_line="$1"
   local line uid who label event_key
@@ -233,7 +256,9 @@ parse_line() {
   remember_player_name "$uid" "$who"
   label="$(resolve_player_label "$uid" "$who")"
 
-  if [[ "$line" == *"DisconnectAccount"* || "$line" == *"graceful close timed out"* || "$line" == *" disconnected"* ]]; then
+  if is_disconnect_candidate "$line"; then
+    debug_log "disconnect candidate: $line"
+
     if [[ "$label" == "Player" ]]; then
       event_key="disconnect:unknown"
     else
@@ -246,7 +271,9 @@ parse_line() {
     return
   fi
 
-  if [[ "$line" == *" joined"* || "$line" == *" connected"* ]]; then
+  if is_join_candidate "$line"; then
+    debug_log "join candidate: $line"
+
     if [[ "$label" == "Player" ]]; then
       event_key="join:${uid:-unknown}"
     else
