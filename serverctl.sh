@@ -5,16 +5,33 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_DIR="${COMPOSE_DIR:-$SCRIPT_DIR}"
 SERVICE_NAME="${SERVICE_NAME:-windrose}"
 MODE="${WINDROSE_MODE:-auto}"
-DOCKER_BIN="${DOCKER_BIN:-docker}"
-SELF_NAME="${WINDROSE_CMD_NAME:-$(basename "$0")}" 
-read -r -a DOCKER_CMD <<< "$DOCKER_BIN"
+DOCKER_BIN="${DOCKER_BIN:-}"
+SELF_NAME="${WINDROSE_CMD_NAME:-$(basename "$0")}"
+DOCKER_CMD=()
 
-require_tools() {
+init_docker_cmd() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "[windrose] Error: docker is not installed or not in PATH."
         exit 1
     fi
 
+    if [[ -n "$DOCKER_BIN" ]]; then
+        read -r -a DOCKER_CMD <<< "$DOCKER_BIN"
+        return
+    fi
+
+    if docker info >/dev/null 2>&1; then
+        DOCKER_CMD=(docker)
+    elif command -v sudo >/dev/null 2>&1; then
+        DOCKER_CMD=(sudo docker)
+    else
+        echo "[windrose] Error: docker needs elevated permissions and sudo is not available."
+        echo "[windrose] Try running with: DOCKER_BIN='sudo docker' ./$SELF_NAME status"
+        exit 1
+    fi
+}
+
+require_tools() {
     if [[ ! -f "$COMPOSE_DIR/docker-compose.yml" ]]; then
         echo "[windrose] Error: docker-compose.yml not found in $COMPOSE_DIR"
         exit 1
@@ -64,7 +81,7 @@ Usage:
 Notes:
   - compose directory: $COMPOSE_DIR
   - detected mode: $ACTIVE_MODE
-  - set DOCKER_BIN="sudo docker" if your user needs sudo
+  - docker permissions are auto-detected; set DOCKER_BIN manually only if needed
   - set WINDROSE_MODE=prod or WINDROSE_MODE=dev to override auto detection
 EOF
 }
@@ -118,16 +135,20 @@ down_server() {
 
 install_self() {
     local target="${1:-/usr/local/bin/windrosectl}"
+    local target_dir
+    target_dir="$(dirname "$target")"
 
-    if ln -sf "$SCRIPT_DIR/windrose" "$target" 2>/dev/null; then
-        echo "[windrose] Installed launcher at $target"
-    else
-        echo "[windrose] Could not write to $target"
-        echo "[windrose] Try: sudo ln -sf \"$SCRIPT_DIR/windrose\" \"$target\""
-        exit 1
-    fi
+    mkdir -p "$target_dir"
+    cat > "$target" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$SCRIPT_DIR/serverctl.sh" "\$@"
+EOF
+    chmod +x "$target"
+    echo "[windrose] Installed launcher at $target"
 }
 
+init_docker_cmd
 require_tools
 
 case "${1:-help}" in
