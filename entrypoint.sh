@@ -6,6 +6,7 @@ SERVERDIR=${SERVERDIR:-/data}
 STEAM_HOME=${STEAM_HOME:-/home/steam}
 WINEPREFIX=${WINEPREFIX:-$STEAM_HOME/.wine}
 WINEARCH=${WINEARCH:-win64}
+WINEDLLOVERRIDES=${WINEDLLOVERRIDES:-mscoree,mshtml=}
 STEAM_LOGIN=${STEAM_LOGIN:-anonymous}
 STEAM_PASS=${STEAM_PASS:-}
 UPDATE_ON_START=${UPDATE_ON_START:-true}
@@ -37,12 +38,13 @@ quote() {
 }
 
 run_as_steam() {
-  HOME="$STEAM_HOME" DISPLAY="${DISPLAY:-:99}" WINEPREFIX="$WINEPREFIX" WINEARCH="$WINEARCH" \
+  HOME="$STEAM_HOME" DISPLAY="${DISPLAY:-:99}" WINEPREFIX="$WINEPREFIX" WINEARCH="$WINEARCH" WINEDLLOVERRIDES="$WINEDLLOVERRIDES" \
     su -m -s /bin/bash steam -c "$*"
 }
 
 wine_prefix_ready() {
   [[ -f "$WINEPREFIX/system.reg" && -f "$WINEPREFIX/drive_c/windows/system32/kernel32.dll" ]] || return 1
+  grep -q '^#arch=win64' "$WINEPREFIX/system.reg" || return 1
 }
 
 print_log_file() {
@@ -129,7 +131,7 @@ init_wine() {
 
     log "Starting wineboot init (will timeout after 120s)..."
     local start_time=$SECONDS
-    run_as_steam "timeout 120 bash -c 'wineboot --init >/tmp/windrose-wineboot.log 2>&1 || true; wineserver -w >/dev/null 2>&1 || true'" || true
+    run_as_steam "timeout 120 bash -c 'winecfg -v win10 >/tmp/windrose-wineboot.log 2>&1 || true; wineboot --init >>/tmp/windrose-wineboot.log 2>&1 || true; wineserver -w >/dev/null 2>&1 || true'" || true
     local elapsed=$((SECONDS - start_time))
     log "wineboot completed in ${elapsed}s"
 
