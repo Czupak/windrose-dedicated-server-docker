@@ -125,14 +125,14 @@ init_wine() {
       chown -R steam:steam "$STEAM_HOME" 2>/dev/null || true
     fi
 
-    run_as_steam "wineboot --init >/tmp/windrose-wineboot.log 2>&1 || true; wineserver -w >/dev/null 2>&1 || true"
+    run_as_steam "timeout 120 bash -c 'wineboot --init >/tmp/windrose-wineboot.log 2>&1 || true; wineserver -w >/dev/null 2>&1 || true'" || true
 
     if wine_prefix_ready; then
       return
     fi
   done
 
-  log "ERROR: Wine prefix initialization failed"
+  log "ERROR: Wine prefix initialization failed (after 2 attempts)"
   print_log_file "Recent Wine boot log:" "/tmp/windrose-wineboot.log"
   exit 1
 }
