@@ -24,6 +24,8 @@ services:
       MAX_PLAYERS: ${MAX_PLAYERS:-4}
       P2P_PROXY_ADDRESS: ${P2P_PROXY_ADDRESS:-127.0.0.1}
       MULTIHOME: ${MULTIHOME:-0.0.0.0}
+      WINEARCH: ${WINEARCH:-win64}
+      WINEPREFIX: ${WINEPREFIX:-/home/steam/.wine}
       WINEDEBUG: -all
       DISPLAY: :99
       PORT: ${PORT:-7777}
