@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  shell-syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate shell scripts
+        run: |
+          set -euo pipefail
+          find . -path './brokol' -prune -o -type f \( -name '*.sh' -o -name 'entrypoint.sh' \) -print0 | while IFS= read -r -d '' file; do
+            bash -n "$file"
+          done
+
+  docker-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: stable
+            build_args: |
+              WINE_FLAVOR=stable
+              ENABLE_WINETRICKS=false
+              INSTALL_DEBUG_TOOLS=false
+              DEFAULT_WINEDEBUG=-all
+          - name: staging
+            build_args: |
+              WINE_FLAVOR=staging
+              ENABLE_WINETRICKS=true
+              WINETRICKS_PACKAGES=win10 vcrun2022
+              INSTALL_DEBUG_TOOLS=false
+              DEFAULT_WINEDEBUG=-all
+          - name: debug
+            build_args: |
+              WINE_FLAVOR=stable
+              ENABLE_WINETRICKS=false
+              INSTALL_DEBUG_TOOLS=true
+              DEFAULT_WINEDEBUG=warn+timestamp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          platforms: linux/amd64
+          provenance: false
+          build-args: ${{ matrix.build_args }}

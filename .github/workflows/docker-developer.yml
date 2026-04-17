@@ -1,13 +1,14 @@
-name: Build and Publish Docker Image
+---
+name: Build and Publish Developer Images
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: docker-publish-${{ github.ref }}
+  group: docker-developer-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -30,8 +31,7 @@ jobs:
               ENABLE_WINETRICKS=false
               INSTALL_DEBUG_TOOLS=false
               DEFAULT_WINEDEBUG=-all
-            tag_suffix: ""
-            aliases: latest,stable
+            channel_tag: dev
           - channel: staging
             build_args: |
               WINE_FLAVOR=staging
@@ -39,16 +39,14 @@ jobs:
               WINETRICKS_PACKAGES=win10 vcrun2022
               INSTALL_DEBUG_TOOLS=false
               DEFAULT_WINEDEBUG=-all
-            tag_suffix: -staging
-            aliases: staging
+            channel_tag: dev-staging
           - channel: debug
             build_args: |
               WINE_FLAVOR=stable
               ENABLE_WINETRICKS=false
               INSTALL_DEBUG_TOOLS=true
               DEFAULT_WINEDEBUG=warn+timestamp
-            tag_suffix: -debug
-            aliases: debug
+            channel_tag: dev-debug
 
     steps:
       - name: Checkout
@@ -68,19 +66,8 @@ jobs:
         id: tags
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/windrose-dedicated-server-docker"
-          ref_name="${GITHUB_REF_NAME}"
-          tags="${image}:${ref_name}${{ matrix.tag_suffix }}"
-
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            IFS=',' read -ra aliases <<< "${{ matrix.aliases }}"
-            for alias in "${aliases[@]}"; do
-              if [[ -n "$alias" ]]; then
-                tags="$tags,${image}:$alias"
-              fi
-            done
-          fi
-
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          short_sha="${GITHUB_SHA::7}"
+          echo "tags=${image}:${{ matrix.channel_tag }},${image}:${{ matrix.channel_tag }}-${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v7

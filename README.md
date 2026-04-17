@@ -76,6 +76,8 @@ Recommended image tags:
 ```text
 Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.1.11
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
+Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
+Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
 ```
 
 Set the image version in `.env` with:
@@ -101,6 +103,52 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 ```
 
 The default [docker-compose.yml](docker-compose.yml) is for stable published images, while [docker-compose.dev.yml](docker-compose.dev.yml) is for local development.
+
+### Image variants
+
+- `latest` / version tags: stable Wine build for normal use.
+- `staging`: fallback image using Wine Staging plus `winetricks` prewarm (`win10`, `vcrun2022`) for host-specific Wine issues.
+- `debug`: stable Wine build plus extra diagnostic tools (`dnsutils`, `file`, `iproute2`, `lsof`, `strace`) and more verbose Wine logging.
+- `dev`, `dev-staging`, `dev-debug`: automatically published developer channels from the `main` branch.
+
+Use the stable channel unless you are actively diagnosing host-specific startup problems.
+
+### Build and release workflows
+
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml): validates shell syntax and builds the stable, staging, and debug images in CI.
+- [`.github/workflows/docker-developer.yml`](.github/workflows/docker-developer.yml): publishes developer images from `main`.
+- [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml): publishes release images from version tags.
+
+### Local smoke build commands
+
+Use these commands when you want to verify all image variants locally before pushing changes:
+
+```bash
+# stable
+docker build \
+	--build-arg WINE_FLAVOR=stable \
+	--build-arg ENABLE_WINETRICKS=false \
+	--build-arg INSTALL_DEBUG_TOOLS=false \
+	--build-arg DEFAULT_WINEDEBUG=-all \
+	-t windrose-smoke:stable .
+
+# staging
+docker build \
+	--build-arg WINE_FLAVOR=staging \
+	--build-arg ENABLE_WINETRICKS=true \
+	--build-arg WINETRICKS_PACKAGES='win10 vcrun2022' \
+	--build-arg INSTALL_DEBUG_TOOLS=false \
+	--build-arg DEFAULT_WINEDEBUG=-all \
+	-t windrose-smoke:staging .
+
+# debug
+docker build \
+	--build-arg WINE_FLAVOR=stable \
+	--build-arg ENABLE_WINETRICKS=false \
+	--build-arg INSTALL_DEBUG_TOOLS=true \
+	--build-arg DEFAULT_WINEDEBUG='warn+timestamp' \
+	-t windrose-smoke:debug .
+```
 
 ---
 
@@ -337,6 +385,8 @@ windrose/
 
 - Most users should keep `IMAGE_TAG=v1.1.11` for a stable server.
 - Use `latest` only for testing.
+- Use `staging` only as a fallback for Wine compatibility issues on a specific host.
+- Use `debug` when you need extra troubleshooting tools inside the image.
 - To upgrade later, change `IMAGE_TAG` in `.env`, then run:
 
 ```bash
@@ -353,6 +403,7 @@ docker compose up -d
 - Xvfb provides a headless X display required by Wine
 - `stop_grace_period: 90s` — allows the server to save before shutdown
 - Optional env-based patching can update `ServerDescription.json` automatically
+- Healthcheck can fail on recent fatal runtime log patterns, not just missing process state
 
 ---
 
@@ -391,6 +442,11 @@ docker compose up -d
 ### What is the difference between stable and latest?
 
 Use a pinned version tag such as `v1.1.11` for production stability. Use `latest` only when you want the newest changes for testing.
+
+### When should I try `staging` or `debug`?
+
+- Try `staging` when stable Wine builds fail on a specific host with prefix or runtime compatibility issues.
+- Try `debug` when you need extra tools and more verbose logging to investigate Wine, DNS, or network problems.
 
 ---
 
