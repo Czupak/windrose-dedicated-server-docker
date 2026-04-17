@@ -112,27 +112,37 @@ init_wine() {
   chown -R steam:steam "$STEAM_HOME" 2>/dev/null || true
 
   if wine_prefix_ready; then
+    log "Wine prefix already initialized and ready"
     return
   fi
 
   for attempt in 1 2; do
     if [[ "$attempt" -eq 1 ]]; then
-      log "Initializing Wine prefix"
+      log "Initializing Wine prefix (attempt $attempt/2)"
     else
-      log "Wine prefix looks incomplete, rebuilding it"
+      log "Wine prefix incomplete, rebuilding it (attempt $attempt/2)"
+      log "Removing old prefix: $WINEPREFIX"
       rm -rf "$WINEPREFIX"
       mkdir -p "$WINEPREFIX"
       chown -R steam:steam "$STEAM_HOME" 2>/dev/null || true
     fi
 
+    log "Starting wineboot init (will timeout after 120s)..."
+    local start_time=$SECONDS
     run_as_steam "timeout 120 bash -c 'wineboot --init >/tmp/windrose-wineboot.log 2>&1 || true; wineserver -w >/dev/null 2>&1 || true'" || true
+    local elapsed=$((SECONDS - start_time))
+    log "wineboot completed in ${elapsed}s"
 
+    log "Checking if Wine prefix is ready..."
     if wine_prefix_ready; then
+      log "Wine prefix ready and functional"
       return
     fi
+    log "Wine prefix check failed, continuing to next attempt..."
   done
 
-  log "ERROR: Wine prefix initialization failed (after 2 attempts)"
+  log "ERROR: Wine prefix initialization failed after 2 attempts"
+  log "Prefix state: $(ls -la "$WINEPREFIX" 2>&1 | head -5)"
   print_log_file "Recent Wine boot log:" "/tmp/windrose-wineboot.log"
   exit 1
 }
