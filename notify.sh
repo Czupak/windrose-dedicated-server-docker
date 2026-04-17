@@ -48,6 +48,7 @@ Windrose activity notifier
 
 Usage:
   $(basename "$0")
+  $(basename "$0") test [optional message]
 
 Environment:
   NOTIFY_PROVIDER=auto|discord|gotify
@@ -96,14 +97,14 @@ send_discord() {
 
   if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
     echo "[notify] DISCORD_WEBHOOK_URL is not set; event: $content"
-    return
+    return 1
   fi
 
   local payload
   payload=$(printf '{"content":"%s"}' "$(printf '%s' "$content" | sed 's/\\/\\\\/g; s/"/\\"/g')")
-  curl -sS -X POST "$DISCORD_WEBHOOK_URL" \
+  curl -fsS -X POST "$DISCORD_WEBHOOK_URL" \
     -H 'Content-Type: application/json' \
-    -d "$payload" >/dev/null || true
+    -d "$payload" >/dev/null
 }
 
 send_gotify() {
@@ -111,13 +112,13 @@ send_gotify() {
 
   if [[ -z "$GOTIFY_URL" || -z "$GOTIFY_TOKEN" ]]; then
     echo "[notify] GOTIFY_URL or GOTIFY_TOKEN is not set; event: $content"
-    return
+    return 1
   fi
 
-  curl -sS -X POST "$GOTIFY_URL/message?token=$GOTIFY_TOKEN" \
+  curl -fsS -X POST "$GOTIFY_URL/message?token=$GOTIFY_TOKEN" \
     -F "title=Windrose activity" \
     -F "message=$content" \
-    -F "priority=$GOTIFY_PRIORITY" >/dev/null || true
+    -F "priority=$GOTIFY_PRIORITY" >/dev/null
 }
 
 send_notification() {
@@ -127,15 +128,38 @@ send_notification() {
 
   case "$provider" in
     discord)
-      send_discord "$content"
+      send_discord "$content" || echo "[notify] Failed to send Discord notification" >&2
       ;;
     gotify)
-      send_gotify "$content"
+      send_gotify "$content" || echo "[notify] Failed to send Gotify notification" >&2
       ;;
     *)
       echo "[notify] No notification backend configured; event: $content"
       ;;
   esac
+}
+
+test_notification() {
+  local message="${1:-⚓ Test notification from Windrose server}"
+  local provider
+
+  provider="$(resolve_provider)"
+  echo "[notify] Sending test notification via $provider..."
+
+  case "$provider" in
+    discord)
+      send_discord "$message"
+      ;;
+    gotify)
+      send_gotify "$message"
+      ;;
+    *)
+      echo "[notify] No notification backend configured."
+      return 1
+      ;;
+  esac
+
+  echo "[notify] Test notification sent successfully."
 }
 
 debug_log() {
@@ -290,6 +314,12 @@ main() {
   if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     usage
     exit 0
+  fi
+
+  if [[ "${1:-}" == "test" ]]; then
+    shift || true
+    test_notification "${*:-}"
+    exit $?
   fi
 
   init_docker_cmd

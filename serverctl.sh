@@ -87,6 +87,7 @@ Usage:
   $SELF_NAME status
   $SELF_NAME logs
   $SELF_NAME notify
+  $SELF_NAME test-notify [message]
   $SELF_NAME backup
   $SELF_NAME install-backup-cron [schedule]
   $SELF_NAME pull
@@ -136,6 +137,11 @@ follow_logs() {
 run_notifier() {
     echo "[windrose] Starting activity notifier..."
     exec "$SCRIPT_DIR/notify.sh"
+}
+
+test_notifier() {
+    echo "[windrose] Sending test notification..."
+    "$SCRIPT_DIR/notify.sh" test "${*:-⚓ Test notification from Windrose server}"
 }
 
 backup_server() {
@@ -236,6 +242,10 @@ case "${1:-help}" in
         ;;
     notify)
         run_notifier
+        ;;
+    test-notify)
+        shift || true
+        test_notifier "$@"
         ;;
     backup)
         backup_server
