@@ -42,7 +42,6 @@ run_as_steam() {
 
 wine_prefix_ready() {
   [[ -f "$WINEPREFIX/system.reg" && -f "$WINEPREFIX/drive_c/windows/system32/kernel32.dll" ]] || return 1
-  run_as_steam "wine cmd /c exit 0 >/tmp/windrose-winecheck.log 2>&1"
 }
 
 print_log_file() {
