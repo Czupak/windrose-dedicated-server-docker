@@ -55,8 +55,8 @@ Production mode uses the published GHCR image by default. Most users only need t
 git clone https://github.com/UberDudePL/windrose-dedicated-server-docker.git
 cd windrose-dedicated-server-docker
 
-# 2. Copy the production example environment file
-cp .env.production.example .env
+# 2. Copy the example environment file
+cp .env.example .env
 
 # 3. Edit basic values if needed
 nano .env
@@ -74,7 +74,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.1.13
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.1.15
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -84,7 +84,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.1.13
+IMAGE_TAG=v1.1.15
 ```
 
 ### Optional: development mode
@@ -172,7 +172,7 @@ If you prefer manual editing, stop the server first and edit `data/R5/ServerDesc
 
 ### Environment variables (`.env`)
 
-Copy `.env.production.example` to `.env` for a normal server, or use `.env.dev.example` for local development and notifier testing.
+Copy `.env.example` to `.env` and adjust to your needs. Use `.env.dev.example` for local development and notifier testing.
 
 ```dotenv
 PUID=1000                    # Host user id for mounted files
@@ -200,7 +200,7 @@ MULTIHOME=0.0.0.0
 | `CONTAINER_NAME` | `windrose` | Change only if you run more than one server on the same host |
 | `HOSTNAME` | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
 | `IMAGE_REPOSITORY` | GHCR repo | Published image repository |
-| `IMAGE_TAG` | `v1.1.13` | Stable image tag to run |
+| `IMAGE_TAG` | `v1.1.15` | Stable image tag to run |
 | `PUID` | `1000` | User id used for mounted files |
 | `PGID` | `1000` | Group id used for mounted files |
 | `UPDATE_ON_START` | `true` | Update and validate server files on startup |
@@ -348,6 +348,53 @@ Use the built-in helper for a safer backup flow. It briefly stops the server, cr
 
 Backups are stored in `./backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`.
 
+You can choose what gets archived in `.env`:
+
+```dotenv
+BACKUP_SCOPE=full
+```
+
+Supported values:
+- `full` (default): archive full `R5` directory
+- `save`: archive only save data (`R5/Saved` and `R5/ServerDescription.json` when present)
+- `both`: create both full and save archives in one run
+
+You can choose the archive format in `.env`:
+
+```dotenv
+BACKUP_FORMAT=tar.gz
+```
+
+Supported values:
+- `tar.gz` (default)
+- `zip` (more convenient to open on Windows)
+
+If you use `BACKUP_FORMAT=zip`, the script checks whether `zip` is available.
+In an interactive shell it asks whether it should install `zip`; in cron/non-interactive mode it exits with a clear error.
+
+The installed cron job appends logs to `./backups/backup.log`.
+
+You can also enable backup result notifications in `.env`:
+
+```dotenv
+BACKUP_NOTIFY_SUCCESS=false
+BACKUP_NOTIFY_FAIL=true
+```
+
+When enabled, backup status notifications use the same backend as `./windrose notify` (`NOTIFY_PROVIDER`, Discord, or Gotify).
+
+You can also upload the backup archive directly to a Discord channel after each successful backup:
+
+```dotenv
+BACKUP_DISCORD_UPLOAD=false
+```
+
+When set to `true`, Discord upload depends on `BACKUP_SCOPE`:
+- `save` or `both`: upload the newest `windrose-backup-save-*` archive (`.tar.gz` or `.zip`)
+- `full`: skip upload intentionally
+
+Files larger than 25 MB are skipped with a warning (Discord free tier limit).
+
 ---
 
 ## Directory structure
@@ -383,7 +430,7 @@ windrose/
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.1.13` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.1.15` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -441,7 +488,7 @@ docker compose up -d
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.1.13` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.1.15` for production stability. Use `latest` only when you want the newest changes for testing.
 
 ### When should I try `staging` or `debug`?
 

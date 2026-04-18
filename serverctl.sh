@@ -22,6 +22,33 @@ DOCKER_BIN="${DOCKER_BIN:-}"
 SELF_NAME="${WINDROSE_CMD_NAME:-$(basename "$0")}"
 DOCKER_CMD=()
 
+# ANSI color codes
+_COLOR_RESET='\033[0m'
+_COLOR_CYAN='\033[0;36m'
+_COLOR_GREEN='\033[0;32m'
+_COLOR_YELLOW='\033[1;33m'
+_COLOR_RED='\033[0;31m'
+
+log_info() {
+    echo -e "${_COLOR_CYAN}[windrose]${_COLOR_RESET} $*"
+}
+
+log_ok() {
+    echo -e "${_COLOR_GREEN}[windrose]${_COLOR_RESET} $*"
+}
+
+log_warn() {
+    echo -e "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} $*"
+}
+
+log_error() {
+    echo -e "${_COLOR_RED}[windrose]${_COLOR_RESET} $*"
+}
+
+log_step() {
+    echo -ne "${_COLOR_CYAN}[windrose]${_COLOR_RESET} $1..."
+}
+
 init_docker_cmd() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "[windrose] Error: docker is not installed or not in PATH."
@@ -49,6 +76,17 @@ require_tools() {
         echo "[windrose] Error: docker-compose.yml not found in $COMPOSE_DIR"
         exit 1
     fi
+}
+
+dotenv_value() {
+    local key="$1"
+    local env_file="$SCRIPT_DIR/.env"
+
+    if [[ ! -f "$env_file" ]]; then
+        return 1
+    fi
+
+    awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, "", $0); print $0}' "$env_file" | tail -n 1
 }
 
 detect_mode() {
@@ -147,45 +185,169 @@ test_notifier() {
 backup_server() {
     local was_running=""
     local backup_exit=0
+    local notify_success notify_fail
+
+    notify_success="${BACKUP_NOTIFY_SUCCESS:-$(dotenv_value BACKUP_NOTIFY_SUCCESS || true)}"
+    notify_fail="${BACKUP_NOTIFY_FAIL:-$(dotenv_value BACKUP_NOTIFY_FAIL || true)}"
+    notify_success="${notify_success:-false}"
+    notify_fail="${notify_fail:-true}"
+    local discord_upload
+    discord_upload="${BACKUP_DISCORD_UPLOAD:-$(dotenv_value BACKUP_DISCORD_UPLOAD || true)}"
+    discord_upload="${discord_upload:-false}"
+
+    local backup_scope
+    backup_scope="${BACKUP_SCOPE:-$(dotenv_value BACKUP_SCOPE || true)}"
+    backup_scope="${backup_scope:-full}"
+
+    local scope_label
+    case "$backup_scope" in
+        full) scope_label="full backup" ;;
+        save) scope_label="save backup" ;;
+        both) scope_label="full + save backup" ;;
+        *)    scope_label="backup" ;;
+    esac
 
     if dc ps --status running --services 2>/dev/null | grep -Fx "$SERVICE_NAME" >/dev/null 2>&1; then
         was_running="yes"
-        echo "[windrose] Stopping server for a consistent backup..."
-        dc stop "$SERVICE_NAME"
+        log_step "Stopping server for a consistent $scope_label"
+        if ! dc stop "$SERVICE_NAME" >/dev/null 2>&1; then
+            echo -e " ${_COLOR_RED}FAILED${_COLOR_RESET}"
+            log_error "Failed to stop container before backup."
+            return 1
+        fi
+        echo -e " ${_COLOR_GREEN}DONE${_COLOR_RESET}"
     fi
 
-    if "$SCRIPT_DIR/backup.sh"; then
+    if [[ ! -f "$SCRIPT_DIR/backup.sh" ]]; then
+        log_error "backup script not found at $SCRIPT_DIR/backup.sh"
+        backup_exit=1
+    elif bash "$SCRIPT_DIR/backup.sh"; then
         backup_exit=0
     else
         backup_exit=$?
     fi
 
     if [[ -n "$was_running" ]]; then
-        echo "[windrose] Starting server again..."
-        dc up -d
-        dc ps
+        log_step "Starting server again"
+        if ! dc up -d >/dev/null 2>&1; then
+            echo -e " ${_COLOR_RED}FAILED${_COLOR_RESET}"
+            log_error "Failed to start container after backup."
+            backup_exit=1
+        else
+            echo -e " ${_COLOR_GREEN}DONE${_COLOR_RESET}"
+        fi
+    fi
+
+    if [[ "$backup_exit" -eq 0 && "$notify_success" == "true" ]]; then
+        "$SCRIPT_DIR/notify.sh" test "⚓ Windrose backup finished successfully on $(hostname -s)." >/dev/null 2>&1 || true
+    fi
+
+    if [[ "$backup_exit" -eq 0 && "$discord_upload" == "true" ]]; then
+        upload_backup_to_discord || true
+    fi
+
+    if [[ "$backup_exit" -ne 0 && "$notify_fail" == "true" ]]; then
+        "$SCRIPT_DIR/notify.sh" test "⚓ Windrose backup failed on $(hostname -s) (exit=$backup_exit)." >/dev/null 2>&1 || true
     fi
 
     return "$backup_exit"
 }
 
+upload_backup_to_discord() {
+    local discord_url backup_dir latest_file file_size http_code backup_scope
+
+    discord_url="${DISCORD_WEBHOOK_URL:-$(dotenv_value DISCORD_WEBHOOK_URL || true)}"
+    if [[ -z "$discord_url" ]]; then
+        log_warn "DISCORD_WEBHOOK_URL not set, skipping Discord upload."
+        return 0
+    fi
+
+    backup_dir="${BACKUP_DIR:-$(dotenv_value BACKUP_DIR || true)}"
+    backup_dir="${backup_dir:-$SCRIPT_DIR/backups}"
+
+    backup_scope="${BACKUP_SCOPE:-$(dotenv_value BACKUP_SCOPE || true)}"
+    backup_scope="${backup_scope:-full}"
+
+    if [[ "$backup_scope" == "full" ]]; then
+        log_info "BACKUP_SCOPE=full, skipping Discord upload (only save backups are uploaded)."
+        return 0
+    fi
+
+    if [[ "$backup_scope" != "save" && "$backup_scope" != "both" ]]; then
+        log_warn "unsupported BACKUP_SCOPE '$backup_scope', skipping Discord upload."
+        return 0
+    fi
+
+    latest_file="$(find "$backup_dir" -maxdepth 1 -type f \( -name 'windrose-backup-save-*.tar.gz' -o -name 'windrose-backup-save-*.zip' \) -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)"
+    if [[ -z "$latest_file" ]]; then
+        log_warn "no save backup file found for Discord upload."
+        return 0
+    fi
+
+    file_size="$(stat -c '%s' "$latest_file" 2>/dev/null || echo 0)"
+    local max_discord_size=$(( 25 * 1024 * 1024 ))
+    if [[ "$file_size" -gt "$max_discord_size" ]]; then
+        log_warn "backup exceeds Discord 25 MB limit ($(( file_size / 1024 / 1024 )) MB), skipping upload."
+        return 0
+    fi
+
+    log_step "Uploading $(basename "$latest_file") to Discord ($(( file_size / 1024 )) KB)"
+    http_code="$(curl -s -o /dev/null -w "%{http_code}" \
+        -F "file=@$latest_file" \
+        -F "payload_json={\"content\":\"⚓ Backup \`$(basename "$latest_file")\` — $(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+        "$discord_url")"
+
+    if [[ "$http_code" =~ ^2 ]]; then
+        echo -e " ${_COLOR_GREEN}DONE${_COLOR_RESET}"
+    else
+        echo -e " ${_COLOR_RED}FAILED (HTTP $http_code)${_COLOR_RESET}"
+    fi
+}
+
 install_backup_cron() {
     local schedule="${1:-0 */6 * * *}"
-    local cron_line="$schedule cd $SCRIPT_DIR && $SCRIPT_DIR/backup.sh >/dev/null 2>&1"
+    local backup_cmd="$SCRIPT_DIR/windrose backup"
+    local backup_log_dir="$SCRIPT_DIR/backups"
+    local backup_log_file="$backup_log_dir/backup.log"
+    local cron_tag="# windrose-backup-job"
+    local cron_cmd
+    local existing_cron filtered_cron
+    local had_legacy_entry=""
+
+    if [[ ! -x "$SCRIPT_DIR/windrose" ]]; then
+        backup_cmd="$SCRIPT_DIR/serverctl.sh backup"
+    fi
+
+    mkdir -p "$backup_log_dir"
+
+    cron_cmd="echo \"[\$(date -Ins)] backup job started\"; if $backup_cmd; then echo \"[\$(date -Ins)] backup job finished successfully\"; else rc=\$?; echo \"[\$(date -Ins)] backup job failed (exit=\$rc)\"; exit \$rc; fi"
+    local cron_line="$schedule /bin/bash -lc '$cron_cmd' >> $backup_log_file 2>&1 $cron_tag"
 
     if ! command -v crontab >/dev/null 2>&1; then
         echo "[windrose] Error: crontab is not available on this host."
         exit 1
     fi
 
-    if crontab -l 2>/dev/null | grep -F "$SCRIPT_DIR/backup.sh" >/dev/null 2>&1; then
-        echo "[windrose] Backup cron already installed."
-        crontab -l
-        return
+    existing_cron="$(crontab -l 2>/dev/null || true)"
+
+    if printf '%s\n' "$existing_cron" | grep -E "($SCRIPT_DIR/backup\.sh|$SCRIPT_DIR/windrose backup|$SCRIPT_DIR/serverctl\.sh backup|backup job started|windrose-backup-job)" >/dev/null 2>&1; then
+        had_legacy_entry="yes"
     fi
 
-    (crontab -l 2>/dev/null; echo "$cron_line") | crontab -
-    echo "[windrose] Installed backup cron:"
+    filtered_cron="$(printf '%s\n' "$existing_cron" | grep -Ev "($SCRIPT_DIR/backup\.sh|$SCRIPT_DIR/windrose backup|$SCRIPT_DIR/serverctl\.sh backup|backup job started|windrose-backup-job)" || true)"
+
+    {
+        if [[ -n "$filtered_cron" ]]; then
+            printf '%s\n' "$filtered_cron"
+        fi
+        echo "$cron_line"
+    } | crontab -
+
+    if [[ -n "$had_legacy_entry" ]]; then
+        echo "[windrose] Updated legacy backup cron to use windrose backup:"
+    else
+        echo "[windrose] Installed backup cron:"
+    fi
     echo "$cron_line"
 }
 
