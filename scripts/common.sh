@@ -67,7 +67,18 @@ ensure_user_mapping() {
   groupmod -o -g "$PGID" steam 2>/dev/null || true
   usermod -o -u "$PUID" steam 2>/dev/null || true
 
-  mkdir -p "$SERVERDIR" "$STEAM_HOME"
+  mkdir -p \
+    "$SERVERDIR" \
+    "$STEAM_HOME" \
+    "$STEAM_HOME/.local/share" \
+    "$STEAM_HOME/.config" \
+    "$STEAM_HOME/.cache" \
+    "$STEAM_HOME/Steam"
+
+  if [ ! -L "$STEAM_HOME/.steam" ]; then
+    ln -sf "$STEAM_HOME/Steam" "$STEAM_HOME/.steam" 2>/dev/null || true
+  fi
+
   chown -R steam:steam /opt/steamcmd "$STEAM_HOME" "$SERVERDIR" 2>/dev/null || true
 }
 

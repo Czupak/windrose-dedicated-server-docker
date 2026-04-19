@@ -30,8 +30,32 @@ update_server() {
     login_cmd="+login $(quote "$STEAM_LOGIN")"
   fi
 
+  log_info "Initializing SteamCMD (bootstrap pass)"
+  run_as_steam "mkdir -p $(quote "$SERVERDIR") && /opt/steamcmd/steamcmd.sh +quit" >/dev/null 2>&1 || true
+
   log_info "Updating or validating server files"
-  run_as_steam "mkdir -p $(quote "$SERVERDIR") && /opt/steamcmd/steamcmd.sh +force_install_dir $(quote "$SERVERDIR") $login_cmd +app_update $(quote "$APPID") validate +quit"
+  local attempts=0
+  local exit_code=0
+  while [ "$attempts" -lt 3 ]; do
+    attempts=$((attempts + 1))
+
+    if run_as_steam "mkdir -p $(quote "$SERVERDIR") && /opt/steamcmd/steamcmd.sh +force_install_dir $(quote "$SERVERDIR") $login_cmd +app_update $(quote "$APPID") validate +quit"; then
+      return 0
+    fi
+
+    exit_code=$?
+    if [ "$exit_code" -eq 254 ]; then
+      log_warn "SteamCMD self-updated (exit 254), retrying ($attempts/3)"
+      sleep 2
+      continue
+    fi
+
+    log_error "SteamCMD failed with exit code $exit_code"
+    return "$exit_code"
+  done
+
+  log_error "SteamCMD still failed after retries (last exit code: $exit_code)"
+  return "$exit_code"
 }
 
 find_server_exe() {

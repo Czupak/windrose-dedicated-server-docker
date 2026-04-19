@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 
 run_as_steam() {
-  HOME="$STEAM_HOME" DISPLAY="${DISPLAY:-:99}" WINEPREFIX="$WINEPREFIX" WINEARCH="$WINEARCH" WINEDLLOVERRIDES="$WINEDLLOVERRIDES" \
+  HOME="$STEAM_HOME" \
+    XDG_DATA_HOME="$STEAM_HOME/.local/share" \
+    XDG_CONFIG_HOME="$STEAM_HOME/.config" \
+    XDG_CACHE_HOME="$STEAM_HOME/.cache" \
+    DISPLAY="${DISPLAY:-:99}" \
+    WINEPREFIX="$WINEPREFIX" \
+    WINEARCH="$WINEARCH" \
+    WINEDLLOVERRIDES="$WINEDLLOVERRIDES" \
     su -m -s /bin/bash steam -c "$*"
 }
 

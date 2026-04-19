@@ -6,31 +6,44 @@ Self-hosted dedicated server for [Windrose](https://store.steampowered.com/app/2
 
 ---
 
+## Table of contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Volumes](#volumes)
+- [Multiple worlds](#multiple-worlds)
+- [How players join](#how-players-join)
+- [Useful commands](#useful-commands)
+- [Optional helper launcher](#optional-helper-launcher)
+- [Quick diagnostics](#quick-diagnostics)
+- [Activity notifications: Discord or Gotify](#activity-notifications-discord-or-gotify)
+- [Save transfer and world selection](#save-transfer-and-world-selection)
+- [Backup saves](#backup-saves)
+- [Directory structure](#directory-structure)
+- [Troubleshooting](#troubleshooting)
+- [Image versions](#image-versions)
+- [Technical notes](#technical-notes)
+- [FAQ](#faq)
+- [Issues and suggestions](#issues-and-suggestions)
+- [Support](#support)
+- [License](#license)
+
+---
+
 ## Features
 
-- Automatic server download and update via SteamCMD
-- Optional update-on-start toggle for faster restarts
-- Wine + Xvfb headless runtime (no desktop required)
-- Persistent saves and config via bind-mounted volumes
-- Optional env-driven patching for server name, password, invite code, and max players
-- PUID and PGID support for better host permission compatibility
-- `restart: unless-stopped` — survives host reboots automatically
-- Improved healthcheck validating process, config, and UDP port binding
-- Log rotation (20 MB × 5 files)
-- Anonymous SteamCMD login by default
-
-### New in v1.1.0
-
-- Best-effort activity notifications via Discord or Gotify
-- Improved helper launcher for easier day-to-day server management
-- Official WineHQ packages in the Docker image for better runtime consistency
-- Faster GitHub image builds with better caching for repeated CI runs
-
-### Historical patch update v1.1.1
-
-- Fixes the startup regression from v1.1.0 that could cause a restart loop with Password / Authentication failure
-- Adds a built-in test command for Discord or Gotify notifications
-- Includes separate example env files for production and local development
+- Dockerized Windrose dedicated server on Linux (Wine + Xvfb, headless)
+- Automatic game install/update via SteamCMD with optional `UPDATE_ON_START` toggle
+- Persistent data by default (`./data`, `./steam-home`) for saves, config, and Steam/Wine state
+- Simple operator-first configuration through `.env` and optional JSON auto-patching
+- Stable helper commands for start/stop/restart/logs/diagnostics and world management
+- Save transfer workflow with explicit `WorldIslandId` mapping and versioned world paths
+- Built-in backup tooling (`./windrose backup`, cron installer, retention controls)
+- Optional Discord/Gotify activity notifications plus notifier test command
+- Multiple image channels (`stable`, `latest`, `staging`, `debug`) for operations and troubleshooting
+- Production-friendly defaults: host networking, restart policy, healthcheck, and log rotation
 
 ---
 
