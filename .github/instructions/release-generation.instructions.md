@@ -12,3 +12,8 @@ When writing GitHub release notes for a tag:
 - Do not affect code, identifiers, commands, or environment variables.
 - Keep the release note short enough to scan quickly.
 - Description starts with "##⚓ Windrose Dedicated Server Docker" and the version number
+
+Before creating or publishing a new tag:
+- Update `IMAGE_TAG` in `.env.example` to the new version.
+- Update all stable tag references in `README.md` to the new version (quick start image example, `IMAGE_TAG` default value in config table, `IMAGE_TAG` in the quick start code block, update/stable guidance lines).
+- Commit and push these documentation changes to `main` before pushing the tag.

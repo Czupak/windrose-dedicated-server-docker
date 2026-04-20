@@ -87,7 +87,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.2.2
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.2.3
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -97,7 +97,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.2.2
+IMAGE_TAG=v1.2.3
 ```
 
 ### Optional: development mode
@@ -213,7 +213,7 @@ MULTIHOME=0.0.0.0
 | `CONTAINER_NAME` | `windrose` | Change only if you run more than one server on the same host |
 | `HOSTNAME` | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
 | `IMAGE_REPOSITORY` | GHCR repo | Published image repository |
-| `IMAGE_TAG` | `v1.2.2` | Stable image tag to run |
+| `IMAGE_TAG` | `v1.2.3` | Stable image tag to run |
 | `PUID` | `1000` | User id used for mounted files |
 | `PGID` | `1000` | Group id used for mounted files |
 | `UPDATE_ON_START` | `true` | Update and validate server files on startup |
@@ -580,7 +580,7 @@ windrose/
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.2.2` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.2.3` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -645,7 +645,7 @@ Use `./windrose update-log [lines]` to quickly inspect recent update details fro
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.2.2` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.2.3` for production stability. Use `latest` only when you want the newest changes for testing.
 
 ### When should I try `staging` or `debug`?
 
