@@ -33,6 +33,22 @@ load_env_file() {
     key="${key#"${key%%[![:space:]]*}"}"
     key="${key%"${key##*[![:space:]]}"}"
     value="${value%$'\r'}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    # Support inline dotenv comments for unquoted values, e.g.:
+    # SERVER_NAME=Windrose with Cheese # Optional server name
+    if [[ "$value" != \"* && "$value" != \'* ]]; then
+      value="$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//')"
+      value="${value%"${value##*[![:space:]]}"}"
+    fi
+
+    # Strip one pair of matching surrounding quotes.
+    if [[ "$value" == \"*\" && "${#value}" -ge 2 ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "${#value}" -ge 2 ]]; then
+      value="${value:1:${#value}-2}"
+    fi
 
     [[ -z "$key" ]] && continue
 
@@ -217,6 +233,7 @@ extract_uid() {
   local uid=""
 
   uid=$(printf '%s' "$line" | sed -nE 's/.*UniqueId: NULL:([^ ,]+).*/\1/p' | head -n 1)
+  [[ "$uid" == "INVALID" ]] && uid=""
   [[ -z "$uid" ]] && uid=$(printf '%s' "$line" | sed -nE 's/.*AccountId[^A-Za-z0-9]*([A-Za-z0-9_-]{6,}).*/\1/p' | head -n 1)
   printf '%s' "$uid"
 }
@@ -226,6 +243,8 @@ extract_name() {
   local name=""
 
   name=$(printf '%s' "$line" | sed -nE 's/.*(DisplayName|PlayerName|Nickname|UserName)[:=][[:space:]]*"?([^",]+)"?.*/\2/p' | head -n 1)
+  [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE 's/.*Join succeeded:[[:space:]]*(.*)$/\1/p' | head -n 1)
+  [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE "s/.*Name '([^']+)'.*AccountId.*/\1/p" | head -n 1)
   [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE 's/.*[?&]Name=([^ ?&,]+).*/\1/p' | head -n 1)
   [[ -z "$name" ]] && name=$(printf '%s' "$line" | sed -nE 's/.*player[[:space:]]+([^ ]+)[[:space:]]+(joined|connected|disconnected).*/\1/pI' | head -n 1)
   name=$(printf '%s' "$name" | sed -E 's/[[:space:]]+(UniqueId:.*|AccountId.*|joined.*|connected.*|disconnected.*)$//I')
@@ -320,7 +339,7 @@ is_join_candidate() {
   local line="$1"
   local lower_line="${line,,}"
 
-  [[ "$lower_line" == *" joined"* || "$lower_line" == *" connected"* || "$lower_line" == *"login request"* || "$lower_line" == *"join request"* || "$lower_line" == *"postlogin"* || "$lower_line" == *"notifyacceptingconnection accepted"* || "$lower_line" == *"notifyacceptedconnection"* || "$lower_line" == *"addclientconnection"* ]]
+  [[ "$lower_line" == *"join succeeded"* || "$lower_line" == *" joined"* || "$lower_line" == *" connected"* || "$lower_line" == *"login request"* || "$lower_line" == *"join request"* || "$lower_line" == *"postlogin"* || "$lower_line" == *"notifyacceptingconnection accepted"* ]]
 }
 
 parse_line() {

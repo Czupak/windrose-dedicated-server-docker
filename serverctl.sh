@@ -781,6 +781,7 @@ json_escape() {
 player_history() {
     local lines="${1:-1200}"
     local history_file="$SCRIPT_DIR/backups/player-history.log"
+    local writer_cmd=(tee -a "$history_file")
 
     if [[ ! "$lines" =~ ^[0-9]+$ ]] || [[ "$lines" -le 0 ]]; then
         log_error "Invalid line count '$lines'. Use a positive integer."
@@ -789,17 +790,26 @@ player_history() {
 
     mkdir -p "$(dirname "$history_file")"
 
+    if ! touch "$history_file" >/dev/null 2>&1; then
+        log_warn "Cannot write to $history_file (permission denied). Showing matched lines only."
+        writer_cmd=(cat)
+    fi
+
     log_info "Scanning last $lines container log lines for player activity (best-effort)"
     if ! dc logs --no-color --timestamps --tail "$lines" "$SERVICE_NAME" 2>&1 \
         | sed 's/\.[0-9]*Z/Z/' \
         | grep -Ei 'lognet: join succeeded|lognet: leave:|saidfarewell|disconnectaccount' \
         | grep -iv 'server account was not found' \
-        | tee -a "$history_file"; then
+        | "${writer_cmd[@]}"; then
         log_warn "No player activity lines matched in the scanned log window."
         return 0
     fi
 
-    log_ok "Player activity lines appended to $history_file"
+    if [[ "${writer_cmd[0]}" == "tee" ]]; then
+        log_ok "Player activity lines appended to $history_file"
+    else
+        log_info "Matched lines printed to stdout (history log file was not writable)."
+    fi
 }
 
 player_events() {
@@ -927,6 +937,26 @@ player_events() {
                 return fallback_name
             }
 
+            function is_raw_identifier(value, upper) {
+                upper = toupper(value)
+                if (value == "") {
+                    return 1
+                }
+                if (upper ~ /^[A-F0-9]{16,}$/) {
+                    return 1
+                }
+                if (upper ~ /^NULL:[A-Z0-9._-]+$/) {
+                    return 1
+                }
+                if (upper ~ /^DESKTOP-[A-Z0-9-]+$/) {
+                    return 1
+                }
+                if (upper ~ /^[A-Z0-9._-]+-[A-F0-9]{12,}$/) {
+                    return 1
+                }
+                return 0
+            }
+
             function remember_identity_name(player, name) {
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", player)
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
@@ -997,12 +1027,26 @@ player_events() {
                 }
 
                 if (low ~ /notifyacceptedconnection|notifyacceptingconnection|login request|postlogin|addclientconnection/) {
+                    candidate_player = ""
+                    candidate_name = ""
+
                     if (user_id != "") {
-                        emit(ts, "join", user_id, "join_inferred_net", best_name("", user_id, login_name))
+                        candidate_player = user_id
+                        candidate_name = best_name("", user_id, login_name)
                     } else if (unique != "") {
-                        emit(ts, "join", unique, "join_inferred_net", best_name("", unique, login_name))
+                        candidate_player = unique
+                        candidate_name = best_name("", unique, login_name)
                     } else if (pc != "") {
-                        emit(ts, "join", pc, "join_inferred_net", best_name("", pc, ""))
+                        candidate_player = pc
+                        candidate_name = best_name("", pc, "")
+                    }
+
+                    # Avoid duplicate/noisy joins: skip inferred_net when both player and name
+                    # are raw identifiers (machine IDs, NULL:<uid>, hashes).
+                    if (candidate_player != "") {
+                        if (!(is_raw_identifier(candidate_player) && is_raw_identifier(candidate_name))) {
+                            emit(ts, "join", candidate_player, "join_inferred_net", candidate_name)
+                        }
                     }
                     next
                 }

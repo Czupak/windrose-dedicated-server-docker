@@ -1,9 +1,12 @@
 When writing GitHub release notes for a tag:
-- Use this exact wrapper format:
-	- TOP: <release title>
-	- DESCRIPTION: <release body in markdown>
+- Provide output in two separate markdown code blocks:
+	- First block: release title only.
+	- Second block: release body only.
+- Do not include literal labels like "TOP:" or "DESCRIPTION:" in the output.
 - TOP title style must be: `vX.Y.Z — Short headline` (example: `v1.2.3 — Safer waters ahead`).
-- Put the final TOP/DESCRIPTION output in a markdown code block for easy copy-paste.
+- The title may be playful and funny in pirate style, as long as it stays clear and readable.
+- Keep both blocks copy-paste friendly.
+- Output exactly two fenced markdown code blocks, with no extra text before, between, or after them.
 - Write in English.
 - Use a playful pirate tone, but keep it readable and professional.
 - Start with the release name and version.
