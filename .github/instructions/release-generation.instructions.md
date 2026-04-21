@@ -16,4 +16,7 @@ When writing GitHub release notes for a tag:
 Before creating or publishing a new tag:
 - Update `IMAGE_TAG` in `.env.example` to the new version.
 - Update all stable tag references in `README.md` to the new version (quick start image example, `IMAGE_TAG` default value in config table, `IMAGE_TAG` in the quick start code block, update/stable guidance lines).
-- Commit and push these documentation changes to `main` before pushing the tag.
+- Validate that old stable version references are gone from `.env.example` and `README.md`.
+- Commit and push these documentation changes to `main` first.
+- Only then create and push the release tag.
+- If a tag was created too early, move it to the latest `main` commit before publishing release notes.

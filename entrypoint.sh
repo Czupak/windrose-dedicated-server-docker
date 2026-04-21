@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APPID=${WINDROSE_APP_ID:-4129620}
 SERVERDIR=${SERVERDIR:-/data}
 STEAM_HOME=${STEAM_HOME:-/home/steam}
 WINEPREFIX=${WINEPREFIX:-$STEAM_HOME/.wine}
@@ -25,8 +24,6 @@ MAX_PLAYERS=${MAX_PLAYERS:-4}
 P2P_PROXY_ADDRESS=${P2P_PROXY_ADDRESS:-127.0.0.1}
 FIRST_RUN_TIMEOUT=${FIRST_RUN_TIMEOUT:-300}
 
-SERVER_PID=""
-SERVER_DESC="$SERVERDIR/R5/ServerDescription.json"
 SCRIPT_ROOT=${WINDROSE_SCRIPT_DIR:-/opt/windrose/scripts}
 
 if [[ ! -d "$SCRIPT_ROOT" ]]; then
