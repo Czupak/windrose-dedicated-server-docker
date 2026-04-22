@@ -899,7 +899,7 @@ doctor_server() {
 
     if server_is_running; then
         log_ok "Service is running: $SERVICE_NAME"
-        health="$(${DOCKER_CMD[@]} inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
+        health="$("${DOCKER_CMD[@]}" inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
         health="${health//$'\n'/}"
         if [[ -z "$health" || "$health" == "not-found" ]]; then
             log_warn "Container health could not be determined for $container_name"
@@ -1892,7 +1892,7 @@ verify_update_runtime() {
 
     for _ in $(seq 1 "$timeout"); do
         if server_is_running; then
-            health="$(${DOCKER_CMD[@]} inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
+            health="$("${DOCKER_CMD[@]}" inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
             health="${health//$'\n'/}"
 
             if [[ "$health" == "healthy" || "$health" == "none" ]]; then
@@ -1968,7 +1968,7 @@ diagnostics_bundle() {
 
     container_name="$(dotenv_value CONTAINER_NAME || true)"
     container_name="${container_name:-$SERVICE_NAME}"
-    ${DOCKER_CMD[@]} inspect "$container_name" > "$tmp_dir/container-inspect.json" 2>/dev/null || true
+    "${DOCKER_CMD[@]}" inspect "$container_name" > "$tmp_dir/container-inspect.json" 2>/dev/null || true
 
     if ! tar -czf "$out_file" -C "$tmp_dir" . >/dev/null 2>&1; then
         log_step_failed
