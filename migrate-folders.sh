@@ -79,8 +79,9 @@ echo
 
 # List remaining files in backups/ (should be only .tar.gz and .zip archives)
 log_info "Remaining files in backups/ (should be backup archives only):"
-if ls -la "$BACKUPS_DIR" 2>/dev/null | grep -qE '\.(tar\.gz|zip)$'; then
-  ls -lh "$BACKUPS_DIR"/*.{tar.gz,zip} 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+count=$(find "$BACKUPS_DIR" -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+if [[ $count -gt 0 ]]; then
+  find "$BACKUPS_DIR" -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec ls -lh {} \; | awk '{print "  " $9 " (" $5 ")"}'
   log_ok "Backup archives are in place."
 else
   log_warn "No backup archives found."
