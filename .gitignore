@@ -21,6 +21,11 @@ brokol/
 # Local backups
 backups/
 
+# Runtime folders (logs, state, diagnostics)
+logs/
+state/
+diagnostics/
+
 # Docker build cache
 *.tar
 
