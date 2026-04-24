@@ -365,16 +365,34 @@ resolve_player_label() {
 
 should_send_event() {
   local key="$1"
+  local alias_key="${2:-}"
   local now last
+  local alias_last
 
   now=$(date +%s)
   last="${RECENT_EVENTS[$key]:-0}"
+  alias_last=0
+
+  if [[ -n "$alias_key" ]]; then
+    alias_last="${RECENT_EVENTS[$alias_key]:-0}"
+  fi
 
   if ((now - last < NOTIFY_DEDUPE_WINDOW)); then
     return 1
   fi
 
+  if [[ -n "$alias_key" ]] && ((now - alias_last < NOTIFY_DEDUPE_WINDOW)); then
+    return 1
+  fi
+
   RECENT_EVENTS["$key"]="$now"
+
+  # Keep uid and label keys in sync so the same event from different log lines
+  # does not bypass dedupe when one line has uid and another has only player name.
+  if [[ -n "$alias_key" ]]; then
+    RECENT_EVENTS["$alias_key"]="$now"
+  fi
+
   return 0
 }
 
@@ -400,7 +418,7 @@ is_join_candidate() {
 
 parse_line() {
   local raw_line="$1"
-  local line uid who label event_key
+  local line uid who label event_key event_alias_key
   local server_name="${SERVER_NAME:-Windrose Server}"
 
   line="$(normalize_line "$raw_line")"
@@ -422,8 +440,13 @@ parse_line() {
     fi
 
     event_key="disconnect:${uid:-$label}"
+    event_alias_key=""
 
-    if should_send_event "$event_key"; then
+    if [[ -n "$uid" && "$label" != "Player" ]]; then
+      event_alias_key="disconnect:$label"
+    fi
+
+    if should_send_event "$event_key" "$event_alias_key"; then
       send_notification "⚓ $label disconnected from $server_name"
     fi
     return
@@ -443,8 +466,13 @@ parse_line() {
     fi
 
     event_key="join:${uid:-$label}"
+    event_alias_key=""
 
-    if should_send_event "$event_key"; then
+    if [[ -n "$uid" && "$label" != "Player" ]]; then
+      event_alias_key="join:$label"
+    fi
+
+    if should_send_event "$event_key" "$event_alias_key"; then
       send_notification "⚓ $label joined $server_name"
     fi
   fi
