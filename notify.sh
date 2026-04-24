@@ -36,14 +36,23 @@ load_env_file() {
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
 
-    # Support inline dotenv comments for unquoted values, e.g.:
+    # Support inline dotenv comments, including quoted values, e.g.:
+    # SERVER_NAME="Windrose with Cheese" # Optional server name
     # SERVER_NAME=Windrose with Cheese # Optional server name
-    if [[ "$value" != \"* && "$value" != \'* ]]; then
+    if [[ "$value" == \"* ]]; then
+      if [[ "$value" =~ ^\"([^\"]*)\"[[:space:]]*(#.*)?$ ]]; then
+        value="${BASH_REMATCH[1]}"
+      fi
+    elif [[ "$value" == \'* ]]; then
+      if [[ "$value" =~ ^\'([^\']*)\'[[:space:]]*(#.*)?$ ]]; then
+        value="${BASH_REMATCH[1]}"
+      fi
+    else
       value="$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//')"
       value="${value%"${value##*[![:space:]]}"}"
     fi
 
-    # Strip one pair of matching surrounding quotes.
+    # Strip one pair of matching surrounding quotes for plain quoted values.
     if [[ "$value" == \"*\" && "${#value}" -ge 2 ]]; then
       value="${value:1:${#value}-2}"
     elif [[ "$value" == \'*\' && "${#value}" -ge 2 ]]; then
