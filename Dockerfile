@@ -66,6 +66,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources; \
     retry_apt_update; \
     apt-get install -y --install-recommends "winehq-${WINE_FLAVOR}"; \
+    # ipp-usb is pulled by recommended desktop/printing stack and is unrelated to server runtime.
+    # It currently carries Go stdlib CVEs reported by Docker Scout, so remove it from the final image.
+    apt-get purge -y --auto-remove ipp-usb; \
     if [ "$ENABLE_WINETRICKS" = 'true' ]; then \
       curl -fsSL https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks -o /usr/local/bin/winetricks; \
       chmod +x /usr/local/bin/winetricks; \
