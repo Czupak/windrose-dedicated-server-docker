@@ -38,6 +38,7 @@ Self-hosted and production-friendly setup with first-time setup helper, world sw
 - [License](#license)
 
 Additional documents:
+
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — full symptom table, diagnostics playbooks, network debugging
 - [DEVELOPMENT.md](DEVELOPMENT.md) — local builds, image channels, CI workflows
 
@@ -60,13 +61,13 @@ Additional documents:
 
 ## Requirements
 
-| Component | Minimum |
-|-----------|---------|
-| OS        | Ubuntu 22.04+ / Debian 12+ (Linux host) |
-| Docker    | 24.x+ |
-| Docker Compose | v2.x (`docker compose`) |
-| RAM       | 8 GB (16 GB recommended for 4 players) |
-| Disk      | 8 GB free for game files |
+| Component      | Minimum                                 |
+| -------------- | --------------------------------------- |
+| OS             | Ubuntu 22.04+ / Debian 12+ (Linux host) |
+| Docker         | 24.x+                                   |
+| Docker Compose | v2.x (`docker compose`)                 |
+| RAM            | 8 GB (16 GB recommended for 4 players)  |
+| Disk           | 8 GB free for game files                |
 
 ---
 
@@ -152,7 +153,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.4.0
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.4.1
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -162,7 +163,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.4.0
+IMAGE_TAG=v1.4.1
 ```
 
 ### Image variants
@@ -220,35 +221,35 @@ MULTIHOME=0.0.0.0
 
 ### `docker-compose.yml` overrides
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CONTAINER_NAME` | `windrose` | Change only if you run more than one server on the same host |
-| `HOSTNAME` | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
-| `IMAGE_REPOSITORY` | GHCR repo | Published image repository |
-| `IMAGE_TAG` | `v1.4.0` | Stable image tag to run |
-| `PUID` | `1000` | User id used for mounted files |
-| `PGID` | `1000` | Group id used for mounted files |
-| `UPDATE_ON_START` | `true` | Update and validate server files on startup |
-| `GENERATE_SETTINGS` | `true` | Auto-patch `ServerDescription.json` from env values |
-| `INVITE_CODE` | empty | Invite code shown to players |
-| `SERVER_NAME` | empty | Display name of the server |
-| `SERVER_NOTE` | empty | Short public server note/description |
-| `SERVER_PASSWORD` | empty | Leave empty for a public server |
-| `MAX_PLAYERS` | `4` | Maximum number of simultaneous players |
-| `P2P_PROXY_ADDRESS` | `127.0.0.1` | Internal socket proxy address |
-| `PORT` | `7777` | Game port (UDP) |
-| `QUERYPORT` | `7778` | Query port (UDP) |
-| `WINDROSE_APP_ID` | `4129620` | Steam AppID |
-| `STEAM_LOGIN` | `anonymous` | SteamCMD login |
+| Variable            | Default     | Description                                                                                                                |
+| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `CONTAINER_NAME`    | `windrose`  | Change only if you run more than one server on the same host                                                               |
+| `HOSTNAME`          | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
+| `IMAGE_REPOSITORY`  | GHCR repo   | Published image repository                                                                                                 |
+| `IMAGE_TAG`         | `v1.4.1`    | Stable image tag to run                                                                                                    |
+| `PUID`              | `1000`      | User id used for mounted files                                                                                             |
+| `PGID`              | `1000`      | Group id used for mounted files                                                                                            |
+| `UPDATE_ON_START`   | `true`      | Update and validate server files on startup                                                                                |
+| `GENERATE_SETTINGS` | `true`      | Auto-patch `ServerDescription.json` from env values                                                                        |
+| `INVITE_CODE`       | empty       | Invite code shown to players                                                                                               |
+| `SERVER_NAME`       | empty       | Display name of the server                                                                                                 |
+| `SERVER_NOTE`       | empty       | Short public server note/description                                                                                       |
+| `SERVER_PASSWORD`   | empty       | Leave empty for a public server                                                                                            |
+| `MAX_PLAYERS`       | `4`         | Maximum number of simultaneous players                                                                                     |
+| `P2P_PROXY_ADDRESS` | `127.0.0.1` | Internal socket proxy address                                                                                              |
+| `PORT`              | `7777`      | Game port (UDP)                                                                                                            |
+| `QUERYPORT`         | `7778`      | Query port (UDP)                                                                                                           |
+| `WINDROSE_APP_ID`   | `4129620`   | Steam AppID                                                                                                                |
+| `STEAM_LOGIN`       | `anonymous` | SteamCMD login                                                                                                             |
 
 ---
 
 ## Volumes
 
-| Host path | Container path | Contents |
-|-----------|---------------|----------|
-| `./data`  | `/data`       | Server files, saves, config |
-| `./steam-home` | `/home/steam` | Wine prefix, SteamCMD cache |
+| Host path      | Container path | Contents                    |
+| -------------- | -------------- | --------------------------- |
+| `./data`       | `/data`        | Server files, saves, config |
+| `./steam-home` | `/home/steam`  | Wine prefix, SteamCMD cache |
 
 ## Multiple worlds
 
@@ -653,19 +654,19 @@ For the full symptom table, diagnostics playbooks, and network troubleshooting, 
 
 Common quick fixes:
 
-| Symptom | Fix |
-|---------|-----|
+| Symptom                                   | Fix                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------- |
 | `wine: '/home/steam' is not owned by you` | Set `PUID` and `PGID` correctly in `.env`, then restart the container |
-| `Server is already active for display 99` | Stale Xvfb lock — entrypoint removes it automatically on restart |
-| Config reset after restart | Edit JSON only when container is stopped |
-| Server not visible to players | Share the `InviteCode` from `ServerDescription.json` |
-| Players have issues after a game patch | Keep the dedicated server version updated to match the game version |
+| `Server is already active for display 99` | Stale Xvfb lock — entrypoint removes it automatically on restart      |
+| Config reset after restart                | Edit JSON only when container is stopped                              |
+| Server not visible to players             | Share the `InviteCode` from `ServerDescription.json`                  |
+| Players have issues after a game patch    | Keep the dedicated server version updated to match the game version   |
 
 ---
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.4.0` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.4.1` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -730,7 +731,7 @@ Use `./windrose update-log [lines]` to quickly inspect recent update details fro
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.4.0` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.4.1` for production stability. Use `latest` only when you want the newest changes for testing.
 For developer image channels (dev, dev-staging, dev-debug), see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
