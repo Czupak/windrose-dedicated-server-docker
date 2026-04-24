@@ -20,35 +20,6 @@ env:
 jobs:
   docker:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - channel: stable
-            build_args: |
-              WINE_FLAVOR=stable
-              ENABLE_WINETRICKS=false
-              INSTALL_DEBUG_TOOLS=false
-              DEFAULT_WINEDEBUG=-all
-            tag_suffix: ""
-            aliases: latest,stable
-          - channel: staging
-            build_args: |
-              WINE_FLAVOR=staging
-              ENABLE_WINETRICKS=true
-              WINETRICKS_PACKAGES=win10 vcrun2022
-              INSTALL_DEBUG_TOOLS=false
-              DEFAULT_WINEDEBUG=-all
-            tag_suffix: -staging
-            aliases: staging
-          - channel: debug
-            build_args: |
-              WINE_FLAVOR=stable
-              ENABLE_WINETRICKS=false
-              INSTALL_DEBUG_TOOLS=true
-              DEFAULT_WINEDEBUG=warn+timestamp
-            tag_suffix: -debug
-            aliases: debug
 
     steps:
       - name: Checkout
@@ -78,15 +49,10 @@ jobs:
           ghcr_image="ghcr.io/${repo_lc}"
           dh_image="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${GITHUB_REPOSITORY##*/}"
           ref_name="${GITHUB_REF_NAME}"
-          tags="${ghcr_image}:${ref_name}${{ matrix.tag_suffix }},${dh_image}:${ref_name}${{ matrix.tag_suffix }}"
+          tags="${ghcr_image}:${ref_name},${dh_image}:${ref_name}"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            IFS=',' read -ra aliases <<< "${{ matrix.aliases }}"
-            for alias in "${aliases[@]}"; do
-              if [[ -n "$alias" ]]; then
-                tags="$tags,${ghcr_image}:${alias},${dh_image}:${alias}"
-              fi
-            done
+            tags="$tags,${ghcr_image}:latest,${dh_image}:latest"
           fi
 
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
@@ -101,5 +67,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-          build-args: ${{ matrix.build_args }}
+          build-args: |
+            WINE_FLAVOR=stable
+            ENABLE_WINETRICKS=false
+            INSTALL_DEBUG_TOOLS=false
+            DEFAULT_WINEDEBUG=-all
           tags: ${{ steps.tags.outputs.tags }}
