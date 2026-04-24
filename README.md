@@ -550,7 +550,7 @@ Each world is a folder named with its world ID (for example `EC10598E83A14ED04D9
 
 ## Backup saves
 
-Use the built-in helper for a safer backup flow. It briefly stops the server, creates a timestamped archive, and starts it again if it was running.
+Use the built-in helper for a safer backup flow. It briefly stops the server, creates a timestamped archive, and starts it again if it was running. If the activity notifier (`./windrose notify`) was active before the backup, it is restarted automatically afterwards.
 
 ```bash
 # Create a manual backup
@@ -563,7 +563,7 @@ Use the built-in helper for a safer backup flow. It briefly stops the server, cr
 ./windrose install-backup-cron "0 3 * * *"
 ```
 
-Backups are stored in `./backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`.
+Backups are stored in `./backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`. Relative paths in `BACKUP_DIR` are resolved relative to the repository directory, not the current working directory.
 
 You can choose what gets archived in `.env`:
 
