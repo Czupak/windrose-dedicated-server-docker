@@ -243,7 +243,7 @@ MULTIHOME=0.0.0.0
 | `MAX_PLAYERS`                     | `4`         | Maximum number of simultaneous players                                                                                     |
 | `P2P_PROXY_ADDRESS`               | `127.0.0.1` | Internal socket proxy address. Change to LAN IP if players connect from the same network                                   |
 | `USE_DIRECT_CONNECTION`           | `false`     | Set to `true` to allow players to connect directly via IP instead of invite code. Requires port forwarding.                |
-| `DIRECT_CONNECTION_SERVER_PORT`   | `7777`      | TCP port used for direct connection. Only applies when `USE_DIRECT_CONNECTION=true`                                        |
+| `DIRECT_CONNECTION_SERVER_PORT`    | `7777`      | Port used for direct connection (TCP and UDP). Only applies when `USE_DIRECT_CONNECTION=true`                              |
 | `DIRECT_CONNECTION_PROXY_ADDRESS` | `0.0.0.0`   | Proxy address for direct connection. Only applies when `USE_DIRECT_CONNECTION=true`                                        |
 | `USER_SELECTED_REGION`            | empty       | Connection service region: `SEA`, `CIS`, `EU`. Leave empty to auto-detect                                                  |
 | `PORT`                            | `7777`      | Game port (UDP)                                                                                                            |
