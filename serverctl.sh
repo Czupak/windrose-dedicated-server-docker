@@ -1677,6 +1677,10 @@ backup_server() {
   local notify_success notify_fail
   local backup_dir
   local discord_upload_note="discord-upload=disabled"
+  local notify_pid_file="$SCRIPT_DIR/state/notify.pid"
+  local notify_log_file="$SCRIPT_DIR/logs/notify.log"
+  local notifier_was_running=false
+  local notifier_pid=""
 
   notify_success="${BACKUP_NOTIFY_SUCCESS:-$(dotenv_value BACKUP_NOTIFY_SUCCESS || true)}"
   notify_fail="${BACKUP_NOTIFY_FAIL:-$(dotenv_value BACKUP_NOTIFY_FAIL || true)}"
@@ -1714,6 +1718,20 @@ backup_server() {
 
   if dc ps --status running --services 2>/dev/null | grep -Fx "$SERVICE_NAME" >/dev/null 2>&1; then
     was_running="yes"
+
+    if [[ -f "$notify_pid_file" ]]; then
+      notifier_pid="$(head -n 1 "$notify_pid_file" 2>/dev/null || true)"
+      if [[ -n "$notifier_pid" ]] && kill -0 "$notifier_pid" >/dev/null 2>&1; then
+        notifier_was_running=true
+      fi
+    fi
+    if [[ "$notifier_was_running" == false ]]; then
+      notifier_pid="$(pgrep -f "$SCRIPT_DIR/notify.sh" | head -n 1 || true)"
+      if [[ -n "$notifier_pid" ]]; then
+        notifier_was_running=true
+      fi
+    fi
+
     log_step "Stopping server for a consistent $scope_label"
     if ! dc stop "$SERVICE_NAME" >/dev/null 2>&1; then
       log_step_failed
@@ -1740,6 +1758,29 @@ backup_server() {
       backup_exit=1
     else
       log_step_done
+    fi
+
+    if [[ "$notifier_was_running" == true ]]; then
+      log_step "Restarting activity notifier after backup"
+      local old_pids=()
+      while IFS= read -r pid; do
+        [[ -n "$pid" ]] && old_pids+=("$pid")
+      done < <(pgrep -f "$SCRIPT_DIR/notify.sh" || true)
+      for pid in "${old_pids[@]}"; do
+        kill "$pid" >/dev/null 2>&1 || true
+      done
+      rm -f "$notify_pid_file"
+      sleep 0.5
+      mkdir -p "$(dirname "$notify_log_file")" "$(dirname "$notify_pid_file")"
+      if nohup "$SCRIPT_DIR/notify.sh" >>"$notify_log_file" 2>&1 & then
+        local notify_new_pid="$!"
+        printf '%s\n' "$notify_new_pid" >"$notify_pid_file"
+        log_step_done
+        log_ok "Activity notifier restarted (PID $notify_new_pid)."
+      else
+        log_step_failed
+        log_warn "Failed to restart activity notifier. Run: ./windrose notify"
+      fi
     fi
   fi
 
