@@ -55,3 +55,8 @@
 - Prefer explicit errors over silent failure.
 - Prefer repository conventions over personal preference.
 - If a requested change conflicts with stability or persistence, explain the tradeoff briefly before implementing it.
+
+## Pre-push validation
+- Before every `git push`, run the same relevant checks as CI workflow for the files changed in the branch.
+- For shell changes, this must include at minimum syntax validation (`bash -n`) and static lint checks (`shellcheck`) so syntax or SC errors do not reach CI.
+- Do not push if required local checks fail; fix the issue first, then rerun checks.

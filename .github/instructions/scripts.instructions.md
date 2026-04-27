@@ -31,3 +31,10 @@ applyTo: "**/*.{sh,bash}"
 - In `serverctl.sh` `usage()` output, keep each command line under `Usage:` aligned with exactly two leading spaces.
 - Do not add extra indentation for newly added commands.
 - After editing `usage()`, quickly verify alignment in raw output (for example with `cat -vet`).
+
+## Pre-push checks for shell changes
+- Before pushing shell changes, run local checks equivalent to CI expectations for touched scripts.
+- Required minimum checks:
+	- `bash -n` for each changed `.sh`/`.bash` file.
+	- `shellcheck` for each changed `.sh`/`.bash` file.
+- Treat any syntax or shellcheck error as a push blocker until fixed.
