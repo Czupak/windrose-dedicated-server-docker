@@ -2538,7 +2538,9 @@ _update_fail() {
   container_name="$(dotenv_value CONTAINER_NAME 2>/dev/null || true)"
   container_name="${container_name:-$SERVICE_NAME}"
   running="no"
-  server_is_running && running="yes" || true
+  if server_is_running; then
+    running="yes"
+  fi
   health="$("${DOCKER_CMD[@]}" inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || true)"
   health="${health//$'\n'/}"
   health="${health:-unknown}"
@@ -2642,7 +2644,9 @@ update_server() {
   update_end_ts="$(date +%s)"
   duration=$((update_end_ts - update_start_ts))
   post_running="no"
-  server_is_running && post_running="yes" || true
+  if server_is_running; then
+    post_running="yes"
+  fi
   post_health="$("${DOCKER_CMD[@]}" inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$_upd_container_name" 2>/dev/null || true)"
   post_health="${post_health//$'\n'/}"
   post_health="${post_health:-unknown}"
