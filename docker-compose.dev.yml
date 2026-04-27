@@ -9,6 +9,4 @@ services:
     environment:
       UPDATE_ON_START: ${UPDATE_ON_START:-false}
     volumes:
-      - ./entrypoint.sh:/entrypoint.sh:ro
-      - ./healthcheck.sh:/healthcheck.sh:ro
       - ./scripts:/opt/windrose/scripts:ro

@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 SERVICE_NAME="${SERVICE_NAME:-windrose}"
+SELF_NAME="${WINDROSE_CMD_NAME:-$(basename "$0")}"
 DOCKER_BIN="${DOCKER_BIN:-}"
 DOCKER_CMD=()
 
@@ -19,6 +20,50 @@ IDENTITY_MAP_FILE="${IDENTITY_MAP_FILE:-$SCRIPT_DIR/state/player-identities.tsv}
 
 declare -A PLAYER_NAMES=()
 declare -A RECENT_EVENTS=()
+
+# ANSI color policy: disable colors when NO_COLOR is set or stdout is not a TTY.
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+  _COLOR_RESET=''
+  _COLOR_CYAN=''
+  _COLOR_GREEN=''
+  _COLOR_YELLOW=''
+  _COLOR_RED=''
+else
+  _COLOR_RESET='\033[0m'
+  _COLOR_CYAN='\033[0;36m'
+  _COLOR_GREEN='\033[0;32m'
+  _COLOR_YELLOW='\033[1;33m'
+  _COLOR_RED='\033[0;31m'
+fi
+
+log_info() {
+  echo -e "${_COLOR_CYAN}[windrose]${_COLOR_RESET} $*"
+}
+
+log_error() {
+  echo -e "${_COLOR_RED}[windrose]${_COLOR_RESET} $*" >&2
+}
+
+log_ok() {
+  echo -e "${_COLOR_GREEN}[windrose]${_COLOR_RESET} [OK] $*"
+}
+
+log_warn() {
+  echo -e "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} [WARN] $*"
+}
+
+log_skip() {
+  echo -e "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} [SKIP] $*"
+}
+
+fatal_exit() {
+  local message="$1"
+  local next_step="${2:-Review the error above and rerun ./$SELF_NAME.}"
+
+  log_error "$message"
+  log_info "Next step: $next_step"
+  exit 1
+}
 
 load_env_file() {
   [[ -f "$ENV_FILE" ]] || return 0
@@ -102,15 +147,21 @@ usage() {
 Windrose activity notifier
 
 Usage:
-  $(basename "$0")
+  $(basename "$0") [watch]
   $(basename "$0") test [optional message]
 
-Environment:
+Commands:
+  watch    Follow container logs and emit activity notifications (default).
+  test     Send one test notification.
+
+Environment (provider):
   NOTIFY_PROVIDER=auto|discord|gotify|both
   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
   GOTIFY_URL=https://gotify.example.com
   GOTIFY_TOKEN=your_app_token
   GOTIFY_PRIORITY=5
+
+Environment (behavior):
   NOTIFY_DEDUPE_WINDOW=90
   NOTIFY_TAIL_LINES=0
   NOTIFY_DEBUG=false
@@ -128,8 +179,7 @@ init_docker_cmd() {
   elif command -v sudo >/dev/null 2>&1; then
     DOCKER_CMD=(sudo docker)
   else
-    echo "[notify] docker is not available"
-    exit 1
+    fatal_exit "docker is not available" "Install Docker or set DOCKER_BIN (for example: DOCKER_BIN='sudo docker' ./$SELF_NAME)."
   fi
 }
 
@@ -151,7 +201,7 @@ send_discord() {
   local content="$1"
 
   if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
-    echo "[notify] DISCORD_WEBHOOK_URL is not set; event: $content"
+    log_skip "DISCORD_WEBHOOK_URL is not set; event: $content"
     return 1
   fi
 
@@ -166,7 +216,7 @@ send_gotify() {
   local content="$1"
 
   if [[ -z "$GOTIFY_URL" || -z "$GOTIFY_TOKEN" ]]; then
-    echo "[notify] GOTIFY_URL or GOTIFY_TOKEN is not set; event: $content"
+    log_skip "GOTIFY_URL or GOTIFY_TOKEN is not set; event: $content"
     return 1
   fi
 
@@ -184,30 +234,30 @@ send_notification() {
 
   case "$provider" in
   discord)
-    send_discord "$content" || echo "[notify] Failed to send Discord notification" >&2
+    send_discord "$content" || log_error "[FAIL] failed to send Discord notification"
     ;;
   gotify)
-    send_gotify "$content" || echo "[notify] Failed to send Gotify notification" >&2
+    send_gotify "$content" || log_error "[FAIL] failed to send Gotify notification"
     ;;
   both)
     if send_discord "$content"; then
       sent=true
     else
-      echo "[notify] Failed to send Discord notification" >&2
+      log_error "[FAIL] failed to send Discord notification"
     fi
 
     if send_gotify "$content"; then
       sent=true
     else
-      echo "[notify] Failed to send Gotify notification" >&2
+      log_error "[FAIL] failed to send Gotify notification"
     fi
 
     if [[ "$sent" != "true" ]]; then
-      echo "[notify] Failed to send notification via both backends" >&2
+      log_error "[FAIL] failed to send notification via both backends"
     fi
     ;;
   *)
-    echo "[notify] No notification backend configured; event: $content"
+    log_skip "No notification backend configured; event: $content"
     ;;
   esac
 }
@@ -218,7 +268,7 @@ test_notification() {
   local sent=false
 
   provider="$(resolve_provider)"
-  echo "[notify] Sending test notification via $provider..."
+  log_info "Sending test notification via $provider..."
 
   case "$provider" in
   discord)
@@ -231,13 +281,13 @@ test_notification() {
     if send_discord "$message"; then
       sent=true
     else
-      echo "[notify] Failed to send Discord notification" >&2
+      log_error "[FAIL] failed to send Discord notification"
     fi
 
     if send_gotify "$message"; then
       sent=true
     else
-      echo "[notify] Failed to send Gotify notification" >&2
+      log_error "[FAIL] failed to send Gotify notification"
     fi
 
     if [[ "$sent" != "true" ]]; then
@@ -245,17 +295,18 @@ test_notification() {
     fi
     ;;
   *)
-    echo "[notify] No notification backend configured."
+    log_error "No notification backend configured."
+    log_info "Next step: configure DISCORD_WEBHOOK_URL or GOTIFY_URL/GOTIFY_TOKEN, or set NOTIFY_PROVIDER explicitly."
     return 1
     ;;
   esac
 
-  echo "[notify] Test notification sent successfully."
+  log_ok "Test notification sent successfully."
 }
 
 debug_log() {
   if [[ "$NOTIFY_DEBUG" == "true" ]]; then
-    echo "[notify][debug] $*" >&2
+    echo "[windrose][debug] $*" >&2
   fi
 }
 
@@ -497,7 +548,7 @@ main() {
 
   # Start watching from "now" to avoid replaying historical joins/leaves.
   watch_since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "[notify] Watching $SERVICE_NAME logs since $watch_since for player activity via $(resolve_provider)..."
+  log_info "Watching $SERVICE_NAME logs since $watch_since for player activity via $(resolve_provider)..."
   "${DOCKER_CMD[@]}" compose -f "$SCRIPT_DIR/docker-compose.yml" logs --since="$watch_since" --tail="$NOTIFY_TAIL_LINES" -f "$SERVICE_NAME" | while IFS= read -r line; do
     parse_line "$line"
   done

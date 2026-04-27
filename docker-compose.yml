@@ -34,7 +34,7 @@ services:
       - ./data:/data
       - ./steam-home:/home/steam
     healthcheck:
-      test: ["CMD-SHELL", "/healthcheck.sh"]
+      test: ["CMD-SHELL", "/opt/windrose/scripts/healthcheck.sh"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -30,12 +30,20 @@ MUTATION_LOCK_META="$MUTATION_LOCK_DIR/meta"
 DOCKER_CMD=()
 MUTATION_LOCK_HELD="false"
 
-# ANSI color codes
-_COLOR_RESET='\033[0m'
-_COLOR_CYAN='\033[0;36m'
-_COLOR_GREEN='\033[0;32m'
-_COLOR_YELLOW='\033[1;33m'
-_COLOR_RED='\033[0;31m'
+# ANSI color policy: disable colors when NO_COLOR is set or stdout is not a TTY.
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+  _COLOR_RESET=''
+  _COLOR_CYAN=''
+  _COLOR_GREEN=''
+  _COLOR_YELLOW=''
+  _COLOR_RED=''
+else
+  _COLOR_RESET='\033[0m'
+  _COLOR_CYAN='\033[0;36m'
+  _COLOR_GREEN='\033[0;32m'
+  _COLOR_YELLOW='\033[1;33m'
+  _COLOR_RED='\033[0;31m'
+fi
 
 log_info() {
   echo -e "${_COLOR_CYAN}[windrose]${_COLOR_RESET} $*"
@@ -53,8 +61,70 @@ log_error() {
   echo -e "${_COLOR_RED}[windrose]${_COLOR_RESET} $*"
 }
 
+log_skip() {
+  echo -e "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} [SKIP] $*"
+}
+
 prompt_text() {
   printf '%b' "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} $1"
+}
+
+prompt_confirm_default_no() {
+  local question="$1"
+  local answer
+
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    log_info "Non-interactive shell detected; defaulting to No: $question"
+    return 1
+  fi
+
+  read -r -p "$(prompt_text "$question ${_COLOR_YELLOW}[y/N]${_COLOR_RESET}: ")" answer
+  case "${answer,,}" in
+  y | yes)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+prompt_confirm_default_yes() {
+  local question="$1"
+  local answer
+
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    log_info "Non-interactive shell detected; defaulting to Yes: $question"
+    return 0
+  fi
+
+  read -r -p "$(prompt_text "$question ${_COLOR_YELLOW}[Y/n]${_COLOR_RESET}: ")" answer
+  case "${answer,,}" in
+  "" | y | yes)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+fatal_exit() {
+  local message="$1"
+  local next_step="${2:-Review the error above and run ./$SELF_NAME doctor for diagnostics.}"
+
+  log_error "$message"
+  log_info "Next step: $next_step"
+  exit 1
+}
+
+fatal_return() {
+  local message="$1"
+  local next_step="${2:-Review the error above and run ./$SELF_NAME doctor for diagnostics.}"
+
+  log_error "$message"
+  log_info "Next step: $next_step"
+  return 1
 }
 
 log_step() {
@@ -62,15 +132,27 @@ log_step() {
 }
 
 log_step_done() {
-  echo -e " ${_COLOR_GREEN}DONE${_COLOR_RESET}"
+  echo -e " ${_COLOR_GREEN}OK${_COLOR_RESET}"
 }
 
 log_step_failed() {
-  echo -e " ${_COLOR_RED}FAILED${_COLOR_RESET}"
+  echo -e " ${_COLOR_RED}FAIL${_COLOR_RESET}"
 }
 
 log_step_pending() {
-  echo -e " ${_COLOR_YELLOW}PENDING${_COLOR_RESET}"
+  echo -e " ${_COLOR_YELLOW}SKIP${_COLOR_RESET}"
+}
+
+screen_title() {
+  printf '\n%s\n' "== $1 =="
+}
+
+screen_section() {
+  printf '\n%s\n' "[$1]"
+}
+
+screen_kv() {
+  printf '  %-18s %s\n' "$1" "$2"
 }
 
 render_progress_bar() {
@@ -110,7 +192,7 @@ is_utf8_locale() {
 
 init_docker_cmd() {
   if ! command -v docker >/dev/null 2>&1; then
-    echo "[windrose] Error: docker is not installed or not in PATH."
+    log_error "[FAIL] docker is not installed or not in PATH."
     exit 1
   fi
 
@@ -124,15 +206,15 @@ init_docker_cmd() {
   elif command -v sudo >/dev/null 2>&1; then
     DOCKER_CMD=(sudo docker)
   else
-    echo "[windrose] Error: docker needs elevated permissions and sudo is not available."
-    echo "[windrose] Try running with: DOCKER_BIN='sudo docker' ./$SELF_NAME status"
+    log_error "[FAIL] docker needs elevated permissions and sudo is not available."
+    log_info "Next step: run with DOCKER_BIN='sudo docker' ./$SELF_NAME status"
     exit 1
   fi
 }
 
 require_tools() {
   if [[ ! -f "$COMPOSE_DIR/docker-compose.yml" ]]; then
-    echo "[windrose] Error: docker-compose.yml not found in $COMPOSE_DIR"
+    log_error "[FAIL] docker-compose.yml not found in $COMPOSE_DIR"
     exit 1
   fi
 }
@@ -190,6 +272,7 @@ Usage:
   $SELF_NAME activity [events|history] [lines]
   $SELF_NAME worlds
   $SELF_NAME worlds-check
+  $SELF_NAME worlds-prune [--apply]
   $SELF_NAME switch
   $SELF_NAME notify [test [message]|status]
   $SELF_NAME backup
@@ -201,13 +284,21 @@ Usage:
   $SELF_NAME down
   $SELF_NAME install [target]
 
+Sections:
+  Lifecycle     setup, start, stop, restart, down, install
+  Health        status, status-json, status-snapshot, doctor, diagnostics, logs
+  Activity      activity, notify
+  Worlds        worlds, worlds-check, worlds-prune, switch
+  Data safety   backup, restore-preview, install-backup-cron
+  Updates       pull, update, update-log
+
 Notes:
   - compose directory: $COMPOSE_DIR
   - detected mode: $ACTIVE_MODE
   - docker permissions are auto-detected; set DOCKER_BIN manually only if needed
   - set WINDROSE_MODE=prod or WINDROSE_MODE=dev to override auto detection
   - backup archives default to ./backups with 7-day retention
-    - legacy aliases kept: player-history, player-events, test-notify
+  - legacy aliases kept: player-history, player-events, test-notify
 EOF
 }
 
@@ -248,7 +339,7 @@ is_mutating_command() {
   local cmd="$1"
 
   case "$cmd" in
-  setup | start | stop | restart | switch | backup | install-backup-cron | pull | update | down)
+  setup | start | stop | restart | switch | worlds-prune | backup | install-backup-cron | pull | update | down)
     return 0
     ;;
   *)
@@ -631,6 +722,81 @@ check_worlds() {
   fi
 }
 
+worlds_prune() {
+  local version worlds_dir current_world_id apply_mode="no"
+  local world_id candidate_paths=()
+
+  require_jq
+
+  if [[ ! -f "$SERVER_DESC_FILE" ]]; then
+    log_error "ServerDescription.json not found at $SERVER_DESC_FILE"
+    log_info "Start the server once so the game can generate its config, then try again."
+    exit 1
+  fi
+
+  version="$(detect_world_version || true)"
+  if [[ -z "$version" ]]; then
+    log_warn "No RocksDB version directory found under $ROCKSDB_DIR"
+    log_info "Start the server once so the save path is initialized, then try again."
+    return 0
+  fi
+
+  worlds_dir="$(worlds_dir_for_version "$version")"
+  if [[ ! -d "$worlds_dir" ]]; then
+    log_warn "Worlds directory does not exist: $worlds_dir"
+    return 0
+  fi
+
+  if [[ "${1:-}" == "--apply" ]]; then
+    apply_mode="yes"
+  fi
+
+  current_world_id="$(jq -r '.ServerDescription_Persistent.WorldIslandId // empty' "$SERVER_DESC_FILE" 2>/dev/null || true)"
+  if [[ -z "$current_world_id" || "$current_world_id" == "null" ]]; then
+    log_warn "Current world is not defined in $SERVER_DESC_FILE"
+  fi
+
+  while IFS= read -r world_id; do
+    if [[ -z "$world_id" || "$world_id" == "$current_world_id" ]]; then
+      continue
+    fi
+    candidate_paths+=("$worlds_dir/$world_id")
+  done < <(load_world_ids "$worlds_dir")
+
+  if [[ ${#candidate_paths[@]} -eq 0 ]]; then
+    log_ok "No non-active world directories found to prune."
+    return 0
+  fi
+
+  log_info "Worlds prune dry-run candidates:"
+  for world_id in "${candidate_paths[@]}"; do
+    echo "  - $world_id"
+  done
+
+  if [[ "$apply_mode" != "yes" ]]; then
+    log_info "Dry run only. Re-run with --apply to delete these candidate world directories."
+    return 0
+  fi
+
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    fatal_exit "Cannot apply worlds-prune in a non-interactive shell." "Run this command in an interactive shell with --apply when you are ready to remove non-active worlds."
+  fi
+
+  if ! prompt_confirm_default_no "Delete ${#candidate_paths[@]} non-active world(s) from $worlds_dir?"; then
+    log_info "World prune canceled."
+    return 0
+  fi
+
+  for world_id in "${candidate_paths[@]}"; do
+    if [[ -d "$world_id" ]]; then
+      rm -rf "$world_id"
+      log_ok "Removed $world_id"
+    fi
+  done
+
+  log_ok "Removed ${#candidate_paths[@]} non-active world(s)."
+}
+
 switch_world() {
   local version worlds_dir current_world_id current_server_name was_running=""
   local selected_id choice tmp_file created_new="false" new_world_name=""
@@ -882,15 +1048,21 @@ status_snapshot() {
     invite_display="not set"
   fi
 
-  printf '%s\n' "--- Windrose Status Snapshot ---"
-  printf '  %-18s %s\n' "mode:" "${ACTIVE_MODE:-unknown}"
-  printf '  %-18s %s\n' "running:" "$running"
-  printf '  %-18s %s\n' "health:" "$health"
-  printf '  %-18s %s\n' "server:" "${server_name:-unknown}"
-  printf '  %-18s %s\n' "world:" "${world_id:-unknown}"
-  printf '  %-18s %s\n' "invite code:" "$invite_display"
-  printf '  %-18s %s\n' "backup age:" "$backup_age"
-  printf '%s\n' "--------------------------------"
+  screen_title "Windrose Status Snapshot"
+
+  screen_section "Runtime"
+  screen_kv "mode:" "${ACTIVE_MODE:-unknown}"
+  screen_kv "running:" "$running"
+  screen_kv "health:" "$health"
+
+  screen_section "Server"
+  screen_kv "server:" "${server_name:-unknown}"
+  screen_kv "world:" "${world_id:-unknown}"
+  screen_kv "invite code:" "$invite_display"
+
+  screen_section "Backup"
+  screen_kv "backup age:" "$backup_age"
+  screen_kv "backup dir:" "$backup_dir"
 }
 
 doctor_server() {
@@ -904,7 +1076,9 @@ doctor_server() {
   local game_port query_port
   local container_name health="unknown"
 
-  log_info "Running doctor checks ($ACTIVE_MODE mode)"
+  screen_title "Windrose Doctor"
+  screen_kv "mode:" "$ACTIVE_MODE"
+  screen_section "Preflight"
 
   if command -v docker >/dev/null 2>&1; then
     log_ok "Docker CLI is available"
@@ -931,6 +1105,8 @@ doctor_server() {
     total_ram_mb="$(awk '/^MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo)"
   fi
 
+  screen_section "Host Resources"
+
   if [[ "$total_ram_mb" =~ ^[0-9]+$ ]] && [[ "$total_ram_mb" -gt 0 ]]; then
     if [[ "$total_ram_mb" -lt "$min_ram_mb" ]]; then
       log_error "Host RAM is ${total_ram_mb} MB (minimum ${min_ram_mb} MB)"
@@ -956,6 +1132,8 @@ doctor_server() {
     warn_count=$((warn_count + 1))
   fi
 
+  screen_section "Data Paths"
+
   if [[ -d "$SCRIPT_DIR/data/R5" ]]; then
     log_ok "Save path exists: $SCRIPT_DIR/data/R5"
   else
@@ -972,6 +1150,8 @@ doctor_server() {
 
   container_name="$(dotenv_value CONTAINER_NAME || true)"
   container_name="${container_name:-$SERVICE_NAME}"
+
+  screen_section "Runtime"
 
   if server_is_running; then
     log_ok "Service is running: $SERVICE_NAME"
@@ -998,6 +1178,8 @@ doctor_server() {
   query_port="${QUERYPORT:-$(dotenv_value QUERYPORT || true)}"
   game_port="${game_port:-7777}"
   query_port="${query_port:-7778}"
+
+  screen_section "Network"
 
   if port_is_in_use "$game_port"; then
     if server_is_running; then
@@ -1033,7 +1215,9 @@ doctor_server() {
     fi
   fi
 
-  log_info "Doctor summary: fails=${fail_count}, warnings=${warn_count}"
+  screen_section "Summary"
+  screen_kv "fails:" "$fail_count"
+  screen_kv "warnings:" "$warn_count"
   if [[ "$fail_count" -gt 0 ]]; then
     log_error "Doctor checks failed. Fix errors above and run ./$SELF_NAME doctor again."
     return 1
@@ -1514,6 +1698,10 @@ run_activity() {
 Usage:
   $SELF_NAME activity [events|history] [lines]
 
+Modes:
+  events   Emit structured join/leave JSON events.
+  history  Show raw matched activity lines.
+
 Examples:
   $SELF_NAME activity
   $SELF_NAME activity events 4000
@@ -1544,13 +1732,19 @@ run_notify_command() {
   help | -h | --help)
     cat <<EOF
 Usage:
-  $SELF_NAME notify
+  $SELF_NAME notify [run]
   $SELF_NAME notify test [message]
   $SELF_NAME notify status
+
+Modes:
+  run      Start watcher (default behavior).
+  test     Send one test notification.
+  status   Show notifier process and backend preflight.
 EOF
     ;;
   *)
     log_error "Unknown notify mode '$mode'. Use: notify, notify test [message], notify status"
+    log_info "Next step: run ./$SELF_NAME notify --help"
     exit 1
     ;;
   esac
@@ -1622,14 +1816,22 @@ notify_status() {
     resolved_provider="$provider"
   fi
 
+  screen_title "Windrose Notify Status"
+
+  screen_section "Process"
   if [[ -n "$notify_pid" ]]; then
+    screen_kv "state:" "running"
+    screen_kv "pid:" "$notify_pid"
     log_ok "Activity notifier is running (PID $notify_pid)."
   else
+    screen_kv "state:" "not running"
     log_warn "Activity notifier is not running."
     log_info "Run: ./$SELF_NAME notify"
   fi
 
-  log_info "Notify provider: $provider (resolved: $resolved_provider)"
+  screen_section "Provider"
+  screen_kv "configured:" "$provider"
+  screen_kv "resolved:" "$resolved_provider"
   local discord_webhook_url gotify_url gotify_token
   discord_webhook_url="${DISCORD_WEBHOOK_URL:-$(dotenv_value DISCORD_WEBHOOK_URL 2>/dev/null || true)}"
   gotify_url="${GOTIFY_URL:-$(dotenv_value GOTIFY_URL 2>/dev/null || true)}"
@@ -1644,9 +1846,10 @@ notify_status() {
     gotify_cfg="set (url only, token missing)"
   fi
 
-  log_info "Discord webhook config: $discord_cfg"
-  log_info "Gotify config:          $gotify_cfg"
+  screen_kv "discord:" "$discord_cfg"
+  screen_kv "gotify:" "$gotify_cfg"
 
+  screen_section "Preflight"
   if [[ "$resolved_provider" == "discord" ]]; then
     _check_notifier_endpoint "discord" "$discord_webhook_url"
   elif [[ "$resolved_provider" == "gotify" ]]; then
@@ -1658,7 +1861,8 @@ notify_status() {
   if [[ "$resolved_provider" == "none" ]]; then
     log_warn "No notification provider is configured. Set DISCORD_WEBHOOK_URL or GOTIFY_URL + GOTIFY_TOKEN in .env"
   fi
-  log_info "Notify log file: $notify_log_file"
+  screen_section "Logs"
+  screen_kv "file:" "$notify_log_file"
 
   if [[ -f "$notify_log_file" ]]; then
     log_info "Last notifier log lines:"
@@ -1701,11 +1905,8 @@ run_notifier() {
   fi
 
   if [[ -n "$notify_pid" ]]; then
-    echo "[windrose] Activity notifier is already running in background (PID $notify_pid)."
-    read -r -p "$(prompt_text "Stop it now? ${_COLOR_YELLOW}[y/N]${_COLOR_RESET}: ")" choice
-
-    case "${choice,,}" in
-    y | yes)
+    log_info "Activity notifier is already running in background (PID $notify_pid)."
+    if prompt_confirm_default_no "Stop it now?"; then
       if [[ -n "$notify_pid" ]]; then
         notifier_pids+=("$notify_pid")
       fi
@@ -1763,18 +1964,13 @@ run_notifier() {
       log_step_done
       log_ok "Notifier stopped."
       return 0
-      ;;
-    *)
+    else
       log_info "Notifier left running in background."
       return 0
-      ;;
-    esac
+    fi
   fi
 
-  read -r -p "$(prompt_text "Run activity notifier in background? ${_COLOR_YELLOW}[y/N]${_COLOR_RESET}: ")" choice
-
-  case "${choice,,}" in
-  y | yes)
+  if prompt_confirm_default_no "Run activity notifier in background?"; then
     mkdir -p "$(dirname "$notify_log_file")"
     log_step "Starting activity notifier in background"
     if nohup "$SCRIPT_DIR/notify.sh" >>"$notify_log_file" 2>&1 & then
@@ -1785,15 +1981,12 @@ run_notifier() {
       log_info "Log file: $notify_log_file"
     else
       log_step_failed
-      log_error "Failed to start notifier in background."
-      exit 1
+      fatal_exit "Failed to start notifier in background." "Retry with ./$SELF_NAME notify and inspect $notify_log_file for details."
     fi
-    ;;
-  *)
+  else
     log_info "Starting activity notifier in foreground"
     exec "$SCRIPT_DIR/notify.sh"
-    ;;
-  esac
+  fi
 }
 
 test_notifier() {
@@ -1984,7 +2177,7 @@ upload_backup_to_discord() {
   if [[ "$http_code" =~ ^2 ]]; then
     log_step_done
   else
-    echo -e " ${_COLOR_RED}FAILED (HTTP $http_code)${_COLOR_RESET}"
+    echo -e " ${_COLOR_RED}FAIL${_COLOR_RESET} (HTTP $http_code)"
   fi
 }
 
@@ -2007,9 +2200,9 @@ restore_preview() {
     fi
 
     local all_archives=()
-    while IFS= read -r -d '' f; do
+    while IFS= read -r f; do
       all_archives+=("$f")
-    done < <(find "$backup_dir" -maxdepth 1 -type f \( -name 'windrose-backup-*.tar.gz' -o -name 'windrose-backup-*.zip' \) -printf '%T@ %p\0' 2>/dev/null | sort -zn | awk -F'\0' 'BEGIN{RS="\0\0"} {sub(/^[0-9.]+ /,""); printf "%s\0", $0}')
+    done < <(find "$backup_dir" -maxdepth 1 -type f \( -name 'windrose-backup-*.tar.gz' -o -name 'windrose-backup-*.zip' \) -printf '%T@ %p\n' 2>/dev/null | sort -n | awk '{print $2}')
 
     if [[ "${#all_archives[@]}" -eq 0 ]]; then
       # Try simpler approach: just find newest by name sort
@@ -2033,10 +2226,9 @@ restore_preview() {
         printf '  [%d] %s\n' "$(( i + 1 ))" "$(basename "${all_archives[$i]}")"
       done
       local selection
-      read -r -p "Select archive [1-${#all_archives[@]}]: " selection
+      read -r -p "$(prompt_text "Select archive [1-${#all_archives[@]}]: ")" selection
       if ! [[ "$selection" =~ ^[0-9]+$ ]] || (( selection < 1 || selection > ${#all_archives[@]} )); then
-        log_error "Invalid selection: $selection"
-        return 1
+        fatal_return "Invalid selection: $selection" "Run ./$SELF_NAME restore-preview and choose a number from the list."
       fi
       archive_path="${all_archives[$(( selection - 1 ))]}"
     fi
@@ -2321,15 +2513,19 @@ _print_update_summary() {
   local health="$6"
   local mins=$((duration_secs / 60))
   local secs=$((duration_secs % 60))
-  printf '\n'
-  log_info "--- Update Summary ---"
-  log_info "  result:    $result"
-  log_info "  old image: ${old_ref:-unknown}"
-  log_info "  new image: ${new_ref:-unknown}"
-  log_info "  duration:  ${mins}m ${secs}s"
-  log_info "  running:   $running"
-  log_info "  health:    $health"
-  log_info "----------------------"
+  screen_title "Windrose Update Summary"
+
+  screen_section "Result"
+  screen_kv "result:" "$result"
+  screen_kv "duration:" "${mins}m ${secs}s"
+
+  screen_section "Image"
+  screen_kv "old image:" "${old_ref:-unknown}"
+  screen_kv "new image:" "${new_ref:-unknown}"
+
+  screen_section "Runtime"
+  screen_kv "running:" "$running"
+  screen_kv "health:" "$health"
 }
 
 _update_fail() {
@@ -2591,19 +2787,19 @@ setup_server() {
   log_info "Windrose first-time setup"
   echo
 
-  local start_after_choice start_after="no"
-  read -r -p "$(prompt_text "Start the server automatically after setup? ${_COLOR_YELLOW}[Y/n]${_COLOR_RESET}: ")" start_after_choice
-  case "${start_after_choice,,}" in
-  "" | y | yes) start_after="yes" ;;
-  *) start_after="no" ;;
-  esac
+  local start_after="no"
+  if prompt_confirm_default_yes "Start the server automatically after setup?"; then
+    start_after="yes"
+  else
+    start_after="no"
+  fi
   echo
 
   local server_name invite_code server_password max_players
   local invite_code_mode="manual"
-  local enable_auto_backup_choice enable_auto_backup="no"
+  local enable_auto_backup="no"
   local backup_schedule backup_format backup_scope
-  local backup_discord_choice backup_discord_upload="no"
+  local backup_discord_upload="no"
   local discord_url=""
 
   read -r -p "$(prompt_text "Server name [My Windrose Server]: ")" server_name
@@ -2628,11 +2824,11 @@ setup_server() {
     exit 1
   fi
 
-  read -r -p "$(prompt_text "Enable automatic backup cron job? ${_COLOR_YELLOW}[y/N]${_COLOR_RESET}: ")" enable_auto_backup_choice
-  case "${enable_auto_backup_choice,,}" in
-  y | yes) enable_auto_backup="yes" ;;
-  *) enable_auto_backup="no" ;;
-  esac
+  if prompt_confirm_default_no "Enable automatic backup cron job?"; then
+    enable_auto_backup="yes"
+  else
+    enable_auto_backup="no"
+  fi
 
   if [[ "$enable_auto_backup" == "yes" ]]; then
     log_info "Default backup schedule is daily at 06:00 (cron: 0 6 * * *)."
@@ -2654,11 +2850,11 @@ setup_server() {
     exit 1
   fi
 
-  read -r -p "$(prompt_text "Upload save backup file to Discord webhook? ${_COLOR_YELLOW}[y/N]${_COLOR_RESET}: ")" backup_discord_choice
-  case "${backup_discord_choice,,}" in
-  y | yes) backup_discord_upload="yes" ;;
-  *) backup_discord_upload="no" ;;
-  esac
+  if prompt_confirm_default_no "Upload save backup file to Discord webhook?"; then
+    backup_discord_upload="yes"
+  else
+    backup_discord_upload="no"
+  fi
 
   if [[ "$backup_discord_upload" == "yes" ]]; then
     if [[ "$backup_scope" == "full" ]]; then
@@ -2897,6 +3093,9 @@ worlds-check)
   ;;
 switch)
   switch_world
+  ;;
+worlds-prune)
+  worlds_prune "${2:-}"
   ;;
 notify)
   shift || true

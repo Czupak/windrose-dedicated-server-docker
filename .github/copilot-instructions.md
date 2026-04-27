@@ -17,6 +17,7 @@
 - Do not rewrite working startup logic unless explicitly requested.
 - Do not change default ports, network behavior, volume mappings, or save paths unless explicitly requested.
 - Do not replace simple Bash or Docker Compose logic with more complex tooling without a strong reason.
+- Do not edit repository files using ad-hoc scripts or bulk find-replace automation; make file changes manually and explicitly unless the user explicitly asks for scripted edits.
 - Prefer small, isolated changes over sweeping cleanup.
 - Reuse the current repository structure unless there is a clear operational benefit to changing it.
 

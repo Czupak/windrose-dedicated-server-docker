@@ -5,27 +5,46 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors
-_COLOR_RESET='\033[0m'
-_COLOR_CYAN='\033[0;36m'
-_COLOR_GREEN='\033[0;32m'
-_COLOR_YELLOW='\033[1;33m'
-_COLOR_RED='\033[0;31m'
+# ANSI color policy: disable colors when NO_COLOR is set or stdout is not a TTY.
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+  _COLOR_RESET=''
+  _COLOR_CYAN=''
+  _COLOR_GREEN=''
+  _COLOR_YELLOW=''
+  _COLOR_RED=''
+else
+  _COLOR_RESET='\033[0m'
+  _COLOR_CYAN='\033[0;36m'
+  _COLOR_GREEN='\033[0;32m'
+  _COLOR_YELLOW='\033[1;33m'
+  _COLOR_RED='\033[0;31m'
+fi
 
 log_info() {
-  echo -e "${_COLOR_CYAN}[windrose-migrate]${_COLOR_RESET} $*"
+  echo -e "${_COLOR_CYAN}[windrose]${_COLOR_RESET} $*"
 }
 
 log_ok() {
-  echo -e "${_COLOR_GREEN}[windrose-migrate]${_COLOR_RESET} $*"
+  echo -e "${_COLOR_GREEN}[windrose]${_COLOR_RESET} [OK] $*"
 }
 
 log_warn() {
-  echo -e "${_COLOR_YELLOW}[windrose-migrate]${_COLOR_RESET} $*"
+  echo -e "${_COLOR_YELLOW}[windrose]${_COLOR_RESET} [WARN] $*"
 }
 
 log_error() {
-  echo -e "${_COLOR_RED}[windrose-migrate]${_COLOR_RESET} $*"
+  echo -e "${_COLOR_RED}[windrose]${_COLOR_RESET} [FAIL] $*"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: ./migrate-folders.sh
+       ./migrate-folders.sh --help
+       ./migrate-folders.sh -h
+       ./migrate-folders.sh help
+
+Migrate legacy files from backups/ into logs/, state/, and diagnostics/.
+EOF
 }
 
 # Folders
@@ -33,6 +52,11 @@ BACKUPS_DIR="$SCRIPT_DIR/backups"
 LOGS_DIR="$SCRIPT_DIR/logs"
 STATE_DIR="$SCRIPT_DIR/state"
 DIAGNOSTICS_DIR="$SCRIPT_DIR/diagnostics"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+  usage
+  exit 0
+fi
 
 if [[ ! -d "$BACKUPS_DIR" ]]; then
   log_warn "No backups/ directory found. Nothing to migrate."

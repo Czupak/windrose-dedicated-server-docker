@@ -109,4 +109,4 @@ RUN chmod +x /entrypoint.sh /healthcheck.sh /opt/windrose/scripts/*.sh
 # volume ownership and then launch the server process as the steam user.
 WORKDIR /home/steam
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/opt/windrose/scripts/entrypoint.sh"]

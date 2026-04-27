@@ -153,7 +153,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.4.2
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.5.0
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -163,7 +163,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.4.2
+IMAGE_TAG=v1.5.0
 ```
 
 ### Image variants
@@ -224,6 +224,8 @@ QUERYPORT=7778
 MULTIHOME=0.0.0.0
 ```
 
+Set `NO_COLOR=1` to disable ANSI colors in helper/CLI output.
+
 ### `docker-compose.yml` overrides
 
 | Variable                          | Default     | Description                                                                                                                |
@@ -231,7 +233,7 @@ MULTIHOME=0.0.0.0
 | `CONTAINER_NAME`                  | `windrose`  | Change only if you run more than one server on the same host                                                               |
 | `HOSTNAME`                        | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
 | `IMAGE_REPOSITORY`                | GHCR repo   | Published image repository                                                                                                 |
-| `IMAGE_TAG`                       | `v1.4.2`    | Stable image tag to run                                                                                                    |
+| `IMAGE_TAG`                       | `v1.5.0`    | Stable image tag to run                                                                                                    |
 | `PUID`                            | `1000`      | User id used for mounted files                                                                                             |
 | `PGID`                            | `1000`      | Group id used for mounted files                                                                                            |
 | `UPDATE_ON_START`                 | `true`      | Update and validate server files on startup                                                                                |
@@ -243,7 +245,7 @@ MULTIHOME=0.0.0.0
 | `MAX_PLAYERS`                     | `4`         | Maximum number of simultaneous players                                                                                     |
 | `P2P_PROXY_ADDRESS`               | `127.0.0.1` | Internal socket proxy address. Change to LAN IP if players connect from the same network                                   |
 | `USE_DIRECT_CONNECTION`           | `false`     | Set to `true` to allow players to connect directly via IP instead of invite code. Requires port forwarding.                |
-| `DIRECT_CONNECTION_SERVER_PORT`    | `7777`      | Port used for direct connection (TCP and UDP). Only applies when `USE_DIRECT_CONNECTION=true`                              |
+| `DIRECT_CONNECTION_SERVER_PORT`   | `7777`      | Port used for direct connection (TCP and UDP). Only applies when `USE_DIRECT_CONNECTION=true`                              |
 | `DIRECT_CONNECTION_PROXY_ADDRESS` | `0.0.0.0`   | Proxy address for direct connection. Only applies when `USE_DIRECT_CONNECTION=true`                                        |
 | `USER_SELECTED_REGION`            | empty       | Connection service region: `SEA`, `CIS`, `EU`. Leave empty to auto-detect                                                  |
 | `PORT`                            | `7777`      | Game port (UDP)                                                                                                            |
@@ -572,7 +574,7 @@ Use the built-in helper for a safer backup flow. It briefly stops the server, cr
 ./windrose install-backup-cron "0 3 * * *"
 ```
 
-Backups are stored in `./backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`. Relative paths in `BACKUP_DIR` are resolved relative to the repository directory, not the current working directory.
+Backups are stored in `backups` by default and old archives are pruned after 7 days. You can change that in `.env` with `BACKUP_DIR` and `BACKUP_RETENTION_DAYS`. Relative paths in `BACKUP_DIR` are resolved relative to the repository directory, not the current working directory.
 
 You can choose what gets archived in `.env`:
 
@@ -602,7 +604,7 @@ After each archive is created, the script runs an integrity test (`tar -tzf` or 
 If you use `BACKUP_FORMAT=zip`, the script checks whether `zip` is available.
 In an interactive shell it asks whether it should install `zip`; in cron/non-interactive mode it exits with a clear error.
 
-The installed cron job appends logs to `./backups/backup.log`.
+The installed cron job appends logs to `backups/backup.log`.
 
 You can also enable backup result notifications in `.env`:
 
@@ -634,7 +636,9 @@ Files larger than 25 MB are skipped with a warning (Discord free tier limit).
 windrose/
 ├── Dockerfile          # Ubuntu 22.04 + Wine + SteamCMD
 ├── docker-compose.yml  # Service definition
-├── entrypoint.sh       # SteamCMD update + server start logic
+├── entrypoint.sh       # Compatibility wrapper -> /opt/windrose/scripts/entrypoint.sh
+├── healthcheck.sh      # Compatibility wrapper -> /opt/windrose/scripts/healthcheck.sh
+├── scripts/            # Canonical runtime scripts used by container
 ├── .env                # Environment variables (do not commit with secrets)
 ├── data/               # Persistent server files and saves (created on first run)
 │   └── R5/
@@ -653,13 +657,20 @@ windrose/
 ./migrate-folders.sh
 ```
 
-This moves log files, state files, and diagnostics to their respective folders while keeping backup archives in `./backups`. The script is safe to run multiple times.
+This moves log files, state files, and diagnostics to their respective folders while keeping backup archives in `backups`. The script is safe to run multiple times.
 
 ---
 
 ## Troubleshooting
 
 For the full symptom table, diagnostics playbooks, and network troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+Path note: for container runtime checks, use canonical script paths first:
+
+- `/opt/windrose/scripts/entrypoint.sh`
+- `/opt/windrose/scripts/healthcheck.sh`
+
+Root files (`/entrypoint.sh`, `/healthcheck.sh`) are compatibility shims that delegate to these canonical scripts.
 
 Common quick fixes:
 
@@ -675,7 +686,7 @@ Common quick fixes:
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.4.2` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.5.0` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -696,6 +707,8 @@ docker compose up -d
 - `stop_grace_period: 90s` — allows the server to save before shutdown
 - Optional env-based patching can update `ServerDescription.json` automatically
 - Healthcheck can fail on recent fatal runtime log patterns, not just missing process state
+- Canonical runtime scripts are under `/opt/windrose/scripts/*`; root-level script files are compatibility wrappers
+- Compatibility wrappers are kept for backward compatibility and may be removed in a future major release after deprecation notice
 
 ---
 
@@ -734,14 +747,158 @@ git pull
 ./windrose update
 ```
 
-`./windrose update` writes detailed command output to `./backups/update.log` and keeps three rotated history files (`update.log.1`, `update.log.2`, `update.log.3`).
+`./windrose update` writes detailed command output to `backups/update.log` and keeps three rotated history files (`update.log.1`, `update.log.2`, `update.log.3`).
 
 Use `./windrose update-log [lines]` to quickly inspect recent update details from the active log file.
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.4.2` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.5.0` for production stability. Use `latest` only when you want the newest changes for testing.
 For developer image channels (dev, dev-staging, dev-debug), see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## Practical operator guides
+
+### Initial host setup and first launch
+
+1. Clone and enter the repository:
+
+   ```bash
+   git clone https://github.com/UberDudePL/windrose-dedicated-server-docker.git
+   cd windrose-dedicated-server-docker
+   ```
+
+2. Create `.env` and adjust only required values:
+
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+
+   Set at least `PUID`, `PGID`, and optional server identity values (`SERVER_NAME`, `INVITE_CODE`).
+
+3. Run first launch:
+
+   ```bash
+   ./windrose setup
+   ```
+
+4. Verify running state before inviting players:
+
+   ```bash
+   ./windrose status
+   ./windrose logs
+   ```
+
+### Save migration and world switch safety
+
+1. Create a backup first:
+
+   ```bash
+   ./windrose backup
+   ```
+
+2. Stop server before any manual save copy/edit:
+
+   ```bash
+   ./windrose stop
+   ```
+
+3. Validate worlds and active world mapping:
+
+   ```bash
+   ./windrose worlds
+   ./windrose worlds-check
+   ```
+
+4. Switch world with helper (recommended):
+
+   ```bash
+   ./windrose switch
+   ```
+
+5. Use prune in safe order:
+
+   ```bash
+   ./windrose worlds-prune
+   ./windrose worlds-prune --apply
+   ```
+
+   Default mode is dry-run. `--apply` requires confirmation in interactive shell and never removes the active world.
+
+### Failed update recovery
+
+1. Check update status and details:
+
+   ```bash
+   ./windrose status
+   ./windrose update-log 200
+   ```
+
+2. Keep mounts and compose defaults unchanged (`./data`, `./steam-home`, ports, and network settings).
+
+3. Roll back to a known-good Git ref only if needed, then restart:
+
+   ```bash
+   git checkout <known-good-tag-or-commit>
+   ./windrose update --force-down
+   ```
+
+4. If startup still fails, generate diagnostics bundle for review:
+
+   ```bash
+   ./windrose diagnostics
+   ```
+
+### Rollback for script path migration
+
+If you need to roll back this script layout migration, use this short procedure:
+
+1. Check out the previous known-good ref and rebuild:
+
+   ```bash
+   git checkout <known-good-tag-or-commit>
+   docker compose build --no-cache windrose
+   ```
+
+2. Recreate the service:
+
+   ```bash
+   docker compose up -d windrose
+   ```
+
+3. Verify health and status:
+
+   ```bash
+   ./windrose status
+   ./windrose doctor
+   ```
+
+This rollback does not require data migration and keeps existing save paths unchanged (`./data`, `./steam-home`).
+
+## Release checklist
+
+1. Pick the new stable version (example: `v1.5.0`).
+2. Update version bump points before tagging:
+   - `.env.example`: set `IMAGE_TAG=v1.5.0`
+   - `README.md`: update all stable version references (`IMAGE_TAG` default examples, quick start snippets, stable guidance lines)
+3. Verify old stable version references are gone from `.env.example` and `README.md`.
+4. Verify behavior locally before publishing:
+
+   ```bash
+   bash -n serverctl.sh backup.sh notify.sh
+   ./windrose status
+   ./windrose worlds-prune
+   ./windrose notify status
+   ```
+
+5. Commit docs/version changes and push them to `main` first.
+6. Run a manual approval checkpoint for script layout migration changes before tagging:
+   - Confirm compose parity checks passed.
+   - Confirm rollback procedure was tested and documented.
+   - Confirm root compatibility wrappers delegate correctly.
+7. After `main` contains the version bump commit and manual approval is recorded, create and push the release tag.
+8. Publish the GitHub release notes for that tag.
+9. If a tag was created too early, move it to the latest `main` commit before publishing release notes.
 
 ---
 

@@ -21,7 +21,7 @@ Most users can skip this section. Use the dev override only when you want to tes
 # Build locally and start with the dev override
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-# Restart after editing entrypoint.sh
+# Restart after editing scripts/entrypoint.sh or scripts/healthcheck.sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml restart windrose
 
 # Stop the dev stack
@@ -51,7 +51,9 @@ Notes:
 
 - `docker-compose.dev.yml` sets `image: windrose-ds:dev` and `pull_policy: never`, so Compose uses your local build.
 - This keeps existing mounted data (`./data`, `./steam-home`) and does not require any Git push/tag workflow.
-- If you only changed mounted scripts (`entrypoint.sh`, `healthcheck.sh`, files in `./scripts`), a rebuild is not required. Use:
+- Canonical runtime scripts are mounted from `./scripts` to `/opt/windrose/scripts`.
+- Root `entrypoint.sh` and `healthcheck.sh` are compatibility wrappers and are not the canonical runtime implementation.
+- If you only changed files in `./scripts`, a rebuild is not required. Use:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml restart windrose

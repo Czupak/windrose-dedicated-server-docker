@@ -17,11 +17,14 @@ When writing GitHub release notes for a tag:
 - Do not affect code, identifiers, commands, or environment variables.
 - Keep the release note short enough to scan quickly.
 - Description starts with "## ⚓ Windrose Dedicated Server Docker" and the version number
+- Include a concise migration update for Docker runtime scripts, and explicitly reference the canonical paths in `/opt/windrose/scripts`.
+- Include the current deprecation status of root compatibility wrappers (`entrypoint.sh`, `healthcheck.sh`) in every release note until those wrappers are fully removed.
 
 Before creating or publishing a new tag:
 - Update `IMAGE_TAG` in `.env.example` to the new version.
 - Update all stable tag references in `README.md` to the new version (quick start image example, `IMAGE_TAG` default value in config table, `IMAGE_TAG` in the quick start code block, update/stable guidance lines).
 - Validate that old stable version references are gone from `.env.example` and `README.md`.
+- Confirm the release notes include an updated wrapper deprecation status entry when the wrappers still exist or their status has changed.
 - Commit and push these documentation changes to `main` first.
 - Only then create and push the release tag.
 - If a tag was created too early, move it to the latest `main` commit before publishing release notes.
