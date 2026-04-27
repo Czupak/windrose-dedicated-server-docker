@@ -23,6 +23,7 @@ Self-hosted and production-friendly setup with first-time setup helper, world sw
 - [Volumes](#volumes)
 - [Multiple worlds](#multiple-worlds)
 - [How players join](#how-players-join)
+- [In-game visibility (official)](#in-game-visibility-official)
 - [Useful commands](#useful-commands)
 - [Quick diagnostics](#quick-diagnostics)
 - [Activity notifications: Discord, Gotify, or both](#activity-notifications-discord-gotify-or-both)
@@ -310,7 +311,7 @@ Gameplay difficulty is stored per world in `WorldDescription.json` and is not co
 
 2. Find the active world ID from `data/R5/ServerDescription.json`:
 
-   ```json
+   ```text
    ServerDescription_Persistent.WorldIslandId
    ```
 
