@@ -154,7 +154,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.5.0
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.6.0
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -164,7 +164,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.5.0
+IMAGE_TAG=v1.6.0
 ```
 
 ### Image variants
@@ -234,7 +234,7 @@ Set `NO_COLOR=1` to disable ANSI colors in helper/CLI output.
 | `CONTAINER_NAME`                  | `windrose`  | Change only if you run more than one server on the same host                                                               |
 | `HOSTNAME`                        | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
 | `IMAGE_REPOSITORY`                | GHCR repo   | Published image repository                                                                                                 |
-| `IMAGE_TAG`                       | `v1.5.0`    | Stable image tag to run                                                                                                    |
+| `IMAGE_TAG`                       | `v1.6.0`    | Stable image tag to run                                                                                                    |
 | `PUID`                            | `1000`      | User id used for mounted files                                                                                             |
 | `PGID`                            | `1000`      | Group id used for mounted files                                                                                            |
 | `UPDATE_ON_START`                 | `true`      | Update and validate server files on startup                                                                                |
@@ -710,6 +710,12 @@ In an interactive shell it asks whether it should install `zip`; in cron/non-int
 
 The installed cron job appends logs to `backups/backup.log`.
 
+Before creating an archive, the backup script checks whether any players are currently online by reading recent container logs. If players are detected, the backup is aborted and a notification is sent via the configured provider (Discord or Gotify). To skip this check (for example in a maintenance window where you know the state), set:
+
+```dotenv
+BACKUP_SKIP_ONLINE_CHECK=true
+```
+
 You can also enable backup result notifications in `.env`:
 
 ```dotenv
@@ -790,7 +796,7 @@ Common quick fixes:
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.5.0` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.6.0` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -857,7 +863,7 @@ Use `./windrose update-log [lines]` to quickly inspect recent update details fro
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.5.0` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.6.0` for production stability. Use `latest` only when you want the newest changes for testing.
 For developer image channels (dev, dev-staging, dev-debug), see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Practical operator guides
@@ -981,9 +987,9 @@ This rollback does not require data migration and keeps existing save paths unch
 
 ## Release checklist
 
-1. Pick the new stable version (example: `v1.5.0`).
+1. Pick the new stable version (example: `v1.6.0`).
 2. Update version bump points before tagging:
-   - `.env.example`: set `IMAGE_TAG=v1.5.0`
+   - `.env.example`: set `IMAGE_TAG=v1.6.0`
    - `README.md`: update all stable version references (`IMAGE_TAG` default examples, quick start snippets, stable guidance lines)
 3. Verify old stable version references are gone from `.env.example` and `README.md`.
 4. Verify behavior locally before publishing:
