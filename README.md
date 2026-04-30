@@ -531,6 +531,8 @@ If command `3` returns lines repeatedly, check outbound connectivity and firewal
 
 For a machine-readable snapshot, use `./windrose status-json`.
 
+`./windrose status` shows a compact operator dashboard: container state and health, currently online players (parsed from recent container logs), last activity event timestamp, backup age, and notifier status. It does not require the `notify` background process to be running — player data is read directly from container logs. Use `./windrose activity status` for a more detailed activity diagnostic.
+
 For quick player activity extraction from logs, use `./windrose activity history [lines]`.
 
 For structured join/leave records, use `./windrose activity events [lines]`.
@@ -737,6 +739,8 @@ When set to `true`, Discord upload depends on `BACKUP_SCOPE`:
 - `full`: skip upload intentionally
 
 Files larger than 25 MB are skipped with a warning (Discord free tier limit).
+
+The backup script also checks for available disk space before creating an archive. It estimates the required space as 1.5× the size of the data directory plus a 2 GB safety margin. If the target disk does not have enough free space, the backup is aborted with a clear error. The check runs against the filesystem where `BACKUP_DIR` is mounted.
 
 ---
 
