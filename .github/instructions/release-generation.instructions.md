@@ -1,7 +1,8 @@
 When writing GitHub release notes for a tag:
+
 - Provide output in two separate markdown code blocks:
-	- First block: release title only.
-	- Second block: release body only.
+  - First block: release title only.
+  - Second block: release body only.
 - Do not include literal labels like "TOP:" or "DESCRIPTION:" in the output.
 - TOP title style must be: `vX.Y.Z — Short headline` (example: `v1.2.3 — Safer waters ahead`).
 - The title may be playful and funny in pirate style, as long as it stays clear and readable.
@@ -21,10 +22,15 @@ When writing GitHub release notes for a tag:
 - Include the current deprecation status of root compatibility wrappers (`entrypoint.sh`, `healthcheck.sh`) in every release note until those wrappers are fully removed.
 
 Before creating or publishing a new tag:
+
 - Update `IMAGE_TAG` in `.env.example` to the new version.
 - Update all stable tag references in `README.md` to the new version (quick start image example, `IMAGE_TAG` default value in config table, `IMAGE_TAG` in the quick start code block, update/stable guidance lines).
+- Update `brokol/docker.md` while preparing release notes so the Docker Hub description source stays current.
 - Validate that old stable version references are gone from `.env.example` and `README.md`.
 - Confirm the release notes include an updated wrapper deprecation status entry when the wrappers still exist or their status has changed.
-- Commit and push these documentation changes to `main` first.
+- Do not include `brokol/docker.md` in release/version-bump commits unless the user explicitly requests it.
+- In every release process, remind the user to manually update the Docker Hub description from `brokol/docker.md`.
+- Do not automate Docker Hub description updates via CI or workflow automation.
+- Commit and push these release-related documentation changes (excluding `brokol/docker.md` unless the user explicitly requests it) to `main` first.
 - Only then create and push the release tag.
 - If a tag was created too early, move it to the latest `main` commit before publishing release notes.
