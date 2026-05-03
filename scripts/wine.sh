@@ -47,6 +47,13 @@ init_wine() {
     local elapsed=$((SECONDS - start_time))
     log_ok "wineboot completed in ${elapsed}s"
 
+    if grep -q 'socket.*Function not implemented' /tmp/windrose-wineboot.log 2>/dev/null; then
+      log_error "Wine prefix initialization failed: wineboot detected 'socket: Function not implemented'"
+      log_error "Host kernel or seccomp profile is blocking socket family AF_ALG (38)."
+      log_error "See TROUBLESHOOTING.md section 'Wine prefix fails in restricted environments (seccomp)' for fixes."
+      exit 1
+    fi
+
     log_info "Checking if Wine prefix is ready..."
     if wine_prefix_ready; then
       log_ok "Wine prefix ready and functional"
