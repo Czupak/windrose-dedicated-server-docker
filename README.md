@@ -62,13 +62,13 @@ Additional documents:
 
 ## Requirements
 
-| Component      | Minimum                                 |
-| -------------- | --------------------------------------- |
-| OS             | Ubuntu 22.04+ / Debian 12+ (Linux host) |
-| Docker         | 24.x+                                   |
-| Docker Compose | v2.x (`docker compose`)                 |
+| Component      | Minimum                                                   |
+| -------------- | --------------------------------------------------------- |
+| OS             | Ubuntu 22.04+ / Debian 12+ (Linux host)                   |
+| Docker         | 24.x+                                                     |
+| Docker Compose | v2.x (`docker compose`)                                   |
 | RAM            | 8 GB (2 players) · 12 GB (4 players) · 16 GB (10 players) |
-| Disk           | 35 GB SSD                               |
+| Disk           | 35 GB SSD                                                 |
 
 ---
 
@@ -340,7 +340,7 @@ Gameplay difficulty is stored per world in `WorldDescription.json` and is not co
    - `ShipsHealthMultiplier = 0.7`, `ShipsDamageMultiplier = 0.6`
    - `BoardingDifficultyMultiplier = 0.7`
    - `CombatDifficulty = Easy`
-   - `EasyExplore = true` *(disables map markers — shown as "Immersive exploration" in-game; despite the name, this makes exploration harder)*
+   - `EasyExplore = true` _(disables map markers — shown as "Immersive exploration" in-game; despite the name, this makes exploration harder)_
 
    **Medium** (default)
    - `WorldPresetType = "Medium"`
@@ -395,25 +395,25 @@ If any of these mismatch, the server may generate a new world and rewrite IDs on
 - `WorldPresetType` should be one of `Easy`, `Medium`, or `Hard` for preset mode.
 - If you change individual `WorldSettings` values, the world can switch to `Custom` on next launch.
 - For predictable outcomes, either:
-   - Use preset values only, or
-   - Intentionally manage a full custom profile and treat `WorldPresetType` as `Custom`.
+  - Use preset values only, or
+  - Intentionally manage a full custom profile and treat `WorldPresetType` as `Custom`.
 
 ### Custom preset parameters
 
 > **Note:** It is generally easier to configure these settings in-game first, then copy the resulting values from your local save file to the server.
 
-| Parameter | Default | Range | Description |
-| :--- | :---: | :---: | :--- |
-| `CoopQuests` | `true` | — | Auto-completes co-op quests for all active players |
-| `EasyExplore` | `false` | — | Disables map markers ("Immersive exploration" in-game). Despite the name, makes exploration harder |
-| `MobHealthMultiplier` | `1.0` | `0.2`–`5.0` | Enemy health multiplier |
-| `MobDamageMultiplier` | `1.0` | `0.2`–`5.0` | Enemy damage multiplier |
-| `ShipHealthMultiplier` | `1.0` | `0.4`–`5.0` | Enemy ship health multiplier |
-| `ShipDamageMultiplier` | `1.0` | `0.2`–`2.5` | Enemy ship damage multiplier |
-| `BoardingDifficultyMultiplier` | `1.0` | `0.2`–`5.0` | Enemy sailors needed to win boarding |
-| `Coop_StatsCorrectionModifier` | `1.0` | `0.0`–`2.0` | Scales enemy health by active player count |
-| `Coop_ShipStatsCorrectionModifier` | `0.0` | `0.0`–`2.0` | Scales enemy ship health by active player count |
-| `CombatDifficulty` | `Normal` | `Easy`/`Normal`/`Hard` | Boss aggression level |
+| Parameter                          | Default  |         Range          | Description                                                                                        |
+| :--------------------------------- | :------: | :--------------------: | :------------------------------------------------------------------------------------------------- |
+| `CoopQuests`                       |  `true`  |           —            | Auto-completes co-op quests for all active players                                                 |
+| `EasyExplore`                      | `false`  |           —            | Disables map markers ("Immersive exploration" in-game). Despite the name, makes exploration harder |
+| `MobHealthMultiplier`              |  `1.0`   |      `0.2`–`5.0`       | Enemy health multiplier                                                                            |
+| `MobDamageMultiplier`              |  `1.0`   |      `0.2`–`5.0`       | Enemy damage multiplier                                                                            |
+| `ShipHealthMultiplier`             |  `1.0`   |      `0.4`–`5.0`       | Enemy ship health multiplier                                                                       |
+| `ShipDamageMultiplier`             |  `1.0`   |      `0.2`–`2.5`       | Enemy ship damage multiplier                                                                       |
+| `BoardingDifficultyMultiplier`     |  `1.0`   |      `0.2`–`5.0`       | Enemy sailors needed to win boarding                                                               |
+| `Coop_StatsCorrectionModifier`     |  `1.0`   |      `0.0`–`2.0`       | Scales enemy health by active player count                                                         |
+| `Coop_ShipStatsCorrectionModifier` |  `0.0`   |      `0.0`–`2.0`       | Scales enemy ship health by active player count                                                    |
+| `CombatDifficulty`                 | `Normal` | `Easy`/`Normal`/`Hard` | Boss aggression level                                                                              |
 
 ### Safe config edit workflow
 
@@ -787,8 +787,6 @@ The backup script also checks for available disk space before creating an archiv
 windrose/
 ├── Dockerfile          # Ubuntu 22.04 + Wine + SteamCMD
 ├── docker-compose.yml  # Service definition
-├── entrypoint.sh       # Compatibility wrapper -> /opt/windrose/scripts/entrypoint.sh
-├── healthcheck.sh      # Compatibility wrapper -> /opt/windrose/scripts/healthcheck.sh
 ├── scripts/            # Canonical runtime scripts used by container
 ├── .env                # Environment variables (do not commit with secrets)
 ├── data/               # Persistent server files and saves (created on first run)
@@ -816,23 +814,16 @@ This moves log files, state files, and diagnostics to their respective folders w
 
 For the full symptom table, diagnostics playbooks, and network troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-Path note: for container runtime checks, use canonical script paths first:
-
-- `/opt/windrose/scripts/entrypoint.sh`
-- `/opt/windrose/scripts/healthcheck.sh`
-
-Root files (`/entrypoint.sh`, `/healthcheck.sh`) are compatibility shims that delegate to these canonical scripts.
-
 Common quick fixes:
 
-| Symptom                                   | Fix                                                                   |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| `wine: '/home/steam' is not owned by you` | Set `PUID` and `PGID` correctly in `.env`, then restart the container |
-| `Server is already active for display 99` | Stale Xvfb lock — entrypoint removes it automatically on restart      |
-| Config reset after restart                | Edit JSON only when container is stopped                              |
-| Server not visible to players             | Share the `InviteCode` from `ServerDescription.json`                  |
-| Players have issues after a game patch    | Keep the dedicated server version updated to match the game version   |
-| Server fails to start or crashes silently in Proxmox | Set CPU type to `host` in the VM/LXC settings (see below)  |
+| Symptom                                              | Fix                                                                   |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `wine: '/home/steam' is not owned by you`            | Set `PUID` and `PGID` correctly in `.env`, then restart the container |
+| `Server is already active for display 99`            | Stale Xvfb lock — entrypoint removes it automatically on restart      |
+| Config reset after restart                           | Edit JSON only when container is stopped                              |
+| Server not visible to players                        | Share the `InviteCode` from `ServerDescription.json`                  |
+| Players have issues after a game patch               | Keep the dedicated server version updated to match the game version   |
+| Server fails to start or crashes silently in Proxmox | Set CPU type to `host` in the VM/LXC settings (see below)             |
 
 ### Proxmox VM and LXC
 
