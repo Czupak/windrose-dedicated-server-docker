@@ -154,7 +154,7 @@ docker compose logs -f windrose
 Recommended image tags:
 
 ```text
-Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.6.2
+Stable: ghcr.io/uberdudepl/windrose-dedicated-server-docker:v1.6.3
 Latest: ghcr.io/uberdudepl/windrose-dedicated-server-docker:latest
 Staging fallback: ghcr.io/uberdudepl/windrose-dedicated-server-docker:staging
 Debug tools: ghcr.io/uberdudepl/windrose-dedicated-server-docker:debug
@@ -164,7 +164,7 @@ Set the image version in `.env` with:
 
 ```dotenv
 IMAGE_REPOSITORY=ghcr.io/uberdudepl/windrose-dedicated-server-docker
-IMAGE_TAG=v1.6.2
+IMAGE_TAG=v1.6.3
 ```
 
 ### Image variants
@@ -208,6 +208,7 @@ STEAM_LOGIN=anonymous        # SteamCMD login
 STEAM_PASS=                  # Leave empty for anonymous login
 WINDROSE_APP_ID=4129620      # Steam AppID for Windrose Dedicated Server
 UPDATE_ON_START=true         # Set false to skip update on container restart
+UPDATE_VERIFY_TIMEOUT=120    # Post-update runtime verification timeout in seconds
 GENERATE_SETTINGS=true       # Set false to skip env-based JSON patching
 INVITE_CODE=                 # Optional invite code
 SERVER_NAME=                 # Optional server name
@@ -227,6 +228,8 @@ MULTIHOME=0.0.0.0
 
 Set `NO_COLOR=1` to disable ANSI colors in helper/CLI output.
 
+If your host is slow to start the container after `./windrose update`, increase `UPDATE_VERIFY_TIMEOUT` (for example to `180` or `300`).
+
 ### `docker-compose.yml` overrides
 
 | Variable                          | Default     | Description                                                                                                                |
@@ -234,10 +237,11 @@ Set `NO_COLOR=1` to disable ANSI colors in helper/CLI output.
 | `CONTAINER_NAME`                  | `windrose`  | Change only if you run more than one server on the same host                                                               |
 | `HOSTNAME`                        | `localhost` | Internal container hostname used by ICE candidate discovery; keep `localhost` unless custom name resolves inside container |
 | `IMAGE_REPOSITORY`                | GHCR repo   | Published image repository                                                                                                 |
-| `IMAGE_TAG`                       | `v1.6.2`    | Stable image tag to run                                                                                                    |
+| `IMAGE_TAG`                       | `v1.6.3`    | Stable image tag to run                                                                                                    |
 | `PUID`                            | `1000`      | User id used for mounted files                                                                                             |
 | `PGID`                            | `1000`      | Group id used for mounted files                                                                                            |
 | `UPDATE_ON_START`                 | `true`      | Update and validate server files on startup                                                                                |
+| `UPDATE_VERIFY_TIMEOUT`           | `120`       | Timeout in seconds for post-update runtime verification in `./windrose update`; increase on slower hosts                   |
 | `GENERATE_SETTINGS`               | `true`      | Auto-patch `ServerDescription.json` from env values                                                                        |
 | `INVITE_CODE`                     | empty       | Invite code shown to players. Leave empty to use direct connection instead                                                 |
 | `SERVER_NAME`                     | empty       | Display name of the server                                                                                                 |
@@ -269,6 +273,8 @@ Windrose stores each world under the save database path:
 
 ```text
 data/R5/Saved/SaveProfiles/Default/RocksDB/<GameVersion>/Worlds/<WorldIslandId>
+or
+data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<GameVersion>/Worlds/<WorldIslandId>
 ```
 
 The active world is selected by `ServerDescription.json`:
@@ -308,7 +314,7 @@ Important:
 
 - Do not rename world folders. The save database relies on those IDs.
 - If you create a new world, the server initializes its data on the next start.
-- World discovery is version-specific, so the command uses the latest directory found under `RocksDB/`.
+- World discovery is version-specific, so the command uses the latest directory found under the auto-detected save root (`RocksDB_v2/` preferred, then `RocksDB/`).
 
 ### Gameplay difficulty
 
@@ -330,6 +336,8 @@ Gameplay difficulty is stored per world in `WorldDescription.json` and is not co
 
    ```text
    data/R5/Saved/SaveProfiles/Default/RocksDB/<GameVersion>/Worlds/<WorldIslandId>/WorldDescription.json
+   or
+   data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<GameVersion>/Worlds/<WorldIslandId>/WorldDescription.json
    ```
 
 4. Set the preset fields in `WorldDescription.json`. Reference values per preset:
@@ -376,7 +384,7 @@ To keep the same game world instead of generating new ones:
 
 If a new world keeps appearing:
 
-- Check that `WorldIslandId` points to a folder that exists under `.../RocksDB/<GameVersion>/Worlds/`.
+- Check that `WorldIslandId` points to a folder that exists under `.../RocksDB/<GameVersion>/Worlds/` or `.../RocksDB_v2/<GameVersion>/Worlds/`.
 - Run `./windrose worlds-check` to detect broken or placeholder entries.
 - Re-select the intended world with `./windrose switch`.
 
@@ -642,6 +650,8 @@ World saves live under:
 
 ```text
 data/R5/Saved/SaveProfiles/Default/RocksDB/<game-version>/Worlds/
+or
+data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<game-version>/Worlds/
 ```
 
 Each world is a folder named with its world ID (for example `EC10598E83A14ED04D9C44CBFBF3F4B1`). The server loads the world whose ID matches `WorldIslandId` in `ServerDescription.json`.
@@ -657,24 +667,28 @@ Each world is a folder named with its world ID (for example `EC10598E83A14ED04D9
    ```
 
 2. **Locate the source world folder** on the machine that currently has the save:
-   - Steam: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\{YourProfile}\RocksDB\{GameVersion}\Worlds\{WorldID}`
-   - EGS: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\{YourProfile}\RocksDB\{GameVersion}\Worlds\{WorldID}`
-   - Stove: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\StoveDefault\RocksDB\{GameVersion}\Worlds\{WorldID}`
-   - Example: `C:\Users\YarrHarrPirate\AppData\Local\R5\Saved\SaveProfiles\76561199699067790\RocksDB\0.8.0\Worlds\EC10598E83A14ED04D9C44CBFBF3F4B1`
+   - Steam: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\{YourProfile}\RocksDB\{GameVersion}\Worlds\{WorldID}` or `...\RocksDB_v2\{GameVersion}\Worlds\{WorldID}`
+   - EGS: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\{YourProfile}\RocksDB\{GameVersion}\Worlds\{WorldID}` or `...\RocksDB_v2\{GameVersion}\Worlds\{WorldID}`
+   - Stove: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\StoveDefault\RocksDB\{GameVersion}\Worlds\{WorldID}` or `...\RocksDB_v2\{GameVersion}\Worlds\{WorldID}`
+   - Example: `C:\Users\YarrHarrPirate\AppData\Local\R5\Saved\SaveProfiles\76561199699067790\RocksDB_v2\0.8.0\Worlds\EC10598E83A14ED04D9C44CBFBF3F4B1`
 
 3. **Copy the entire world folder** to the dedicated server data directory, preserving the folder name exactly:
 
    ```text
    data/R5/Saved/SaveProfiles/Default/RocksDB/<game-version>/Worlds/
+   or
+   data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<game-version>/Worlds/
    ```
 
    Example using `scp` from a local machine (copy folder as-is):
 
    ```bash
-   scp -r "./EC10598E83A14ED04D9C44CBFBF3F4B1" user@yourserver:/windrose/data/R5/Saved/SaveProfiles/Default/RocksDB/<version>/Worlds/
+   scp -r "./EC10598E83A14ED04D9C44CBFBF3F4B1" user@yourserver:/windrose/data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<version>/Worlds/
    ```
 
    Use the copied folder name exactly. Do not rename world folders.
+
+   Restore note: copy the `WorldID` folder directly into `.../Worlds/`. Do not create nested `Worlds/Worlds/...` paths. Helper commands (`./windrose worlds`, `./windrose worlds-check`, `./windrose switch`, `./windrose worlds-prune`) auto-detect `RocksDB_v2` or `RocksDB`.
 
 4. **Set the world ID** in `data/R5/ServerDescription.json`:
 
@@ -839,7 +853,7 @@ Using `host` CPU type passes the physical CPU's full instruction set through to 
 
 ## Image versions
 
-- Most users should keep `IMAGE_TAG=v1.6.2` for a stable server.
+- Most users should keep `IMAGE_TAG=v1.6.3` for a stable server.
 - Use `latest` only for testing.
 - Use `staging` only as a fallback for Wine compatibility issues on a specific host.
 - Use `debug` when you need extra troubleshooting tools inside the image.
@@ -869,7 +883,7 @@ docker compose up -d
 
 ### How do I transfer a savegame to the server?
 
-See the [Save transfer and world selection](#save-transfer-and-world-selection) section. In short: back up first, stop both server and client, copy the full world folder into `data/R5/Saved/SaveProfiles/Default/RocksDB/<version>/Worlds/`, set `WorldIslandId` to the exact folder name, then start the server.
+See the [Save transfer and world selection](#save-transfer-and-world-selection) section. In short: back up first, stop both server and client, copy the full world folder into `data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<version>/Worlds/` (or `.../RocksDB/<version>/Worlds/`), set `WorldIslandId` to the exact folder name, then start the server.
 
 ### How do players join the server?
 
@@ -906,7 +920,7 @@ Use `./windrose update-log [lines]` to quickly inspect recent update details fro
 
 ### What is the difference between stable and latest?
 
-Use a pinned version tag such as `v1.6.2` for production stability. Use `latest` only when you want the newest changes for testing.
+Use a pinned version tag such as `v1.6.3` for production stability. Use `latest` only when you want the newest changes for testing.
 For developer image channels (dev, dev-staging, dev-debug), see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Practical operator guides

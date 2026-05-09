@@ -22,7 +22,9 @@ DOCKER_BIN="${DOCKER_BIN:-}"
 SELF_NAME="${WINDROSE_CMD_NAME:-$(basename "$0")}"
 SERVER_DESC_FILE="$SCRIPT_DIR/data/R5/ServerDescription.json"
 APP_MANIFEST_FILE="$SCRIPT_DIR/data/steamapps/appmanifest_4129620.acf"
-ROCKSDB_DIR="$SCRIPT_DIR/data/R5/Saved/SaveProfiles/Default/RocksDB"
+ROCKSDB_V2_DIR="$SCRIPT_DIR/data/R5/Saved/SaveProfiles/Default/RocksDB_v2"
+ROCKSDB_V1_DIR="$SCRIPT_DIR/data/R5/Saved/SaveProfiles/Default/RocksDB"
+ACTIVE_SAVE_ROOT=""
 WORLD_NAME_PENDING_FILE=".windrose-world-name"
 UPDATE_LOG_DIR="$SCRIPT_DIR/logs"
 UPDATE_LOG_FILE="$UPDATE_LOG_DIR/update.log"
@@ -383,11 +385,36 @@ require_jq() {
 }
 
 detect_world_version() {
-  if [[ ! -d "$ROCKSDB_DIR" ]]; then
+  local save_root="${1:-$ACTIVE_SAVE_ROOT}"
+
+  if [[ -z "$save_root" || ! -d "$save_root" ]]; then
     return 1
   fi
 
-  find "$ROCKSDB_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V | tail -n 1
+  find "$save_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V | tail -n 1
+}
+
+save_roots_checked_text() {
+  printf '%s and %s' "$ROCKSDB_V2_DIR" "$ROCKSDB_V1_DIR"
+}
+
+detect_active_save_root() {
+  if [[ -d "$ROCKSDB_V2_DIR" ]]; then
+    printf '%s' "$ROCKSDB_V2_DIR"
+    return 0
+  fi
+
+  if [[ -d "$ROCKSDB_V1_DIR" ]]; then
+    printf '%s' "$ROCKSDB_V1_DIR"
+    return 0
+  fi
+
+  return 1
+}
+
+set_active_save_root() {
+  ACTIVE_SAVE_ROOT="$(detect_active_save_root || true)"
+  [[ -n "$ACTIVE_SAVE_ROOT" ]]
 }
 
 detect_game_version() {
@@ -469,7 +496,7 @@ generate_world_id() {
 
 worlds_dir_for_version() {
   local version="$1"
-  printf '%s' "$ROCKSDB_DIR/$version/Worlds"
+  printf '%s' "$ACTIVE_SAVE_ROOT/$version/Worlds"
 }
 
 world_description_file() {
@@ -740,9 +767,15 @@ list_worlds() {
     exit 1
   fi
 
-  version="$(detect_world_version || true)"
+  if ! set_active_save_root; then
+    log_error "No save root directory found. Checked: $(save_roots_checked_text)"
+    log_info "Start the server once so the save path is initialized, then try again."
+    exit 1
+  fi
+
+  version="$(detect_world_version "$ACTIVE_SAVE_ROOT" || true)"
   if [[ -z "$version" ]]; then
-    log_error "No RocksDB version directory found under $ROCKSDB_DIR"
+    log_error "No save version directory found under active root: $ACTIVE_SAVE_ROOT (checked roots: $(save_roots_checked_text))"
     log_info "Start the server once so the save path is initialized, then try again."
     exit 1
   fi
@@ -756,9 +789,15 @@ check_worlds() {
   local version worlds_dir world_id pending_file extra_entry
   local issue_count=0
 
-  version="$(detect_world_version || true)"
+  if ! set_active_save_root; then
+    log_error "No save root directory found. Checked: $(save_roots_checked_text)"
+    log_info "Start the server once so the save path is initialized, then try again."
+    exit 1
+  fi
+
+  version="$(detect_world_version "$ACTIVE_SAVE_ROOT" || true)"
   if [[ -z "$version" ]]; then
-    log_error "No RocksDB version directory found under $ROCKSDB_DIR"
+    log_error "No save version directory found under active root: $ACTIVE_SAVE_ROOT (checked roots: $(save_roots_checked_text))"
     log_info "Start the server once so the save path is initialized, then try again."
     exit 1
   fi
@@ -810,9 +849,15 @@ worlds_prune() {
     exit 1
   fi
 
-  version="$(detect_world_version || true)"
+  if ! set_active_save_root; then
+    log_warn "No save root directory found. Checked: $(save_roots_checked_text)"
+    log_info "Start the server once so the save path is initialized, then try again."
+    return 0
+  fi
+
+  version="$(detect_world_version "$ACTIVE_SAVE_ROOT" || true)"
   if [[ -z "$version" ]]; then
-    log_warn "No RocksDB version directory found under $ROCKSDB_DIR"
+    log_warn "No save version directory found under active root: $ACTIVE_SAVE_ROOT (checked roots: $(save_roots_checked_text))"
     log_info "Start the server once so the save path is initialized, then try again."
     return 0
   fi
@@ -886,14 +931,20 @@ switch_world() {
     exit 1
   fi
 
-  version="$(detect_world_version || true)"
-  if [[ -z "$version" ]]; then
-    log_error "No RocksDB version directory found under $ROCKSDB_DIR"
+  if ! set_active_save_root; then
+    log_error "No save root directory found. Checked: $(save_roots_checked_text)"
     log_info "Start the server once so the save path is initialized, then try again."
     exit 1
   fi
 
-  worlds_dir="$ROCKSDB_DIR/$version/Worlds"
+  version="$(detect_world_version "$ACTIVE_SAVE_ROOT" || true)"
+  if [[ -z "$version" ]]; then
+    log_error "No save version directory found under active root: $ACTIVE_SAVE_ROOT (checked roots: $(save_roots_checked_text))"
+    log_info "Start the server once so the save path is initialized, then try again."
+    exit 1
+  fi
+
+  worlds_dir="$(worlds_dir_for_version "$version")"
   mkdir -p "$worlds_dir"
 
   current_world_id="$(jq -r '.ServerDescription_Persistent.WorldIslandId // empty' "$SERVER_DESC_FILE")"
@@ -1239,7 +1290,7 @@ share_access() {
   screen_title "Windrose Server Access"
   screen_kv "server name:" "${server_name:-(not set)}"
   screen_kv "invite code:" "${invite_code:-(not set)}"
-  screen_kv "password:"    "${server_password:-(none)}"
+  screen_kv "password:" "${server_password:-(none)}"
 }
 
 status_snapshot() {
@@ -2959,18 +3010,25 @@ show_update_log() {
 }
 
 verify_update_runtime() {
-  local timeout="${UPDATE_VERIFY_TIMEOUT:-120}"
+  local timeout_raw="${UPDATE_VERIFY_TIMEOUT:-}"
+  local timeout=120
   local container_name
   local health="unknown"
 
-  if ! [[ "$timeout" =~ ^[0-9]+$ ]] || [[ "$timeout" -le 0 ]]; then
-    timeout=120
+  if [[ -n "$timeout_raw" ]]; then
+    if [[ "$timeout_raw" =~ ^[0-9]+$ ]] && [[ "$timeout_raw" -gt 0 ]]; then
+      timeout="$timeout_raw"
+    else
+      log_warn "Invalid UPDATE_VERIFY_TIMEOUT='$timeout_raw'; using fallback ${timeout}s."
+      append_update_log "Post-update verify: invalid UPDATE_VERIFY_TIMEOUT='$timeout_raw', using ${timeout}s"
+    fi
   fi
 
   container_name="$(dotenv_value CONTAINER_NAME || true)"
   container_name="${container_name:-$SERVICE_NAME}"
 
   log_step "Verifying service runtime after update (timeout ${timeout}s)"
+  append_update_log "Post-update verify started (timeout=${timeout}s)"
 
   for _ in $(seq 1 "$timeout"); do
     if server_is_running; then
@@ -2980,7 +3038,7 @@ verify_update_runtime() {
       if [[ "$health" == "healthy" || "$health" == "none" ]]; then
         log_step_done
         log_ok "Update verification passed (running=true, health=${health})."
-        append_update_log "Post-update verify: running=true health=${health}"
+        append_update_log "Post-update verify: running=true health=${health} timeout=${timeout}s"
         return 0
       fi
 
@@ -2989,7 +3047,7 @@ verify_update_runtime() {
         log_error "Container became unhealthy after update."
         log_info "Run: ./$SELF_NAME logs"
         log_info "Run: ./$SELF_NAME update-log"
-        append_update_log "Post-update verify: unhealthy"
+        append_update_log "Post-update verify: unhealthy timeout=${timeout}s"
         return 1
       fi
     fi
@@ -3002,7 +3060,7 @@ verify_update_runtime() {
   log_info "Run: ./$SELF_NAME status"
   log_info "Run: ./$SELF_NAME logs"
   log_info "Run: ./$SELF_NAME update-log"
-  append_update_log "Post-update verify: timeout"
+  append_update_log "Post-update verify: timeout=${timeout}s"
   return 1
 }
 
