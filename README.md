@@ -746,6 +746,7 @@ Operator note: if both `RocksDB` and `RocksDB_v2` exist at the same time, `./win
 If standard world-folder restore does not work (world loads but remains empty, or generates a new world on startup), copy the entire SaveProfiles directory instead:
 
 1. **Stop the server**:
+
    ```bash
    ./windrose stop
    ```
@@ -756,6 +757,7 @@ If standard world-folder restore does not work (world loads but remains empty, o
    - Stove: `C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\StoveDefault\`
 
 3. **Copy the entire profile to the server as `Default`**:
+
    ```bash
    scp -r "C:\Users\{UserName}\AppData\Local\R5\Saved\SaveProfiles\{YourProfile}" user@yourserver:/windrose/data/R5/Saved/SaveProfiles/Default
    ```
@@ -763,6 +765,7 @@ If standard world-folder restore does not work (world loads but remains empty, o
    This copies the full directory structure, including all version folders and RocksDB/RocksDB_v2 databases.
 
 4. **Start the server**:
+
    ```bash
    ./windrose start
    ```

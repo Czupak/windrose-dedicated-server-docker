@@ -133,22 +133,27 @@ If any one mismatches, the server assumes this is a fresh install and generates 
 ### Diagnostic steps
 
 1. **Stop the server first** — do not edit config on a running server:
+
    ```bash
    ./windrose stop
    ```
 
 2. **Check the current WorldIslandId**:
+
    ```bash
    cat data/R5/ServerDescription.json | grep -i WorldIslandId
    ```
 
 3. **List existing world folders**:
+
    ```bash
    ls -la data/R5/Saved/SaveProfiles/Default/RocksDB_v2/*/Worlds/ 2>/dev/null || ls -la data/R5/Saved/SaveProfiles/Default/RocksDB/*/Worlds/
    ```
+
    Note the folder names — these are world IDs.
 
 4. **For each world folder, check its islandId**:
+
    ```bash
    cat data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<version>/Worlds/<WorldID>/WorldDescription.json | grep -i islandId
    # or for RocksDB (old layout):
@@ -166,12 +171,15 @@ If they don't match:
 
 1. Choose the **correct world ID** (the one with your save data).
 2. Update `ServerDescription.json` to use that ID:
+
    ```bash
    cat data/R5/ServerDescription.json | sed 's/"WorldIslandId": "[^"]*"/"WorldIslandId": "<correct_id>"/' > temp.json && mv temp.json data/R5/ServerDescription.json
    ```
+
    Or edit manually with a text editor.
 
 3. If the folder name doesn't match the ID:
+
    ```bash
    mv data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<version>/Worlds/<old_name> data/R5/Saved/SaveProfiles/Default/RocksDB_v2/<version>/Worlds/<correct_id>
    ```
